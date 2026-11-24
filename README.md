@@ -11,38 +11,38 @@ It shows:
 ## Layout
 
 ```
-backend/app.py          FastAPI: /health, /api/*, and serves frontend/dist
-backend/queries.py      SQL; filter values are bound as parameters
-backend/requirements.txt
-requirements.txt        one-line shim to backend/requirements.txt
-frontend/src/           static page (index.html, assets/app.js, assets/styles.css)
-frontend/build.js       `npm run build` copies src/ to dist/
+frontend/src/                 static page (index.html, assets/app.js, assets/xlsx.js, assets/styles.css)
+frontend/staticwebapp.config.json  sign-in, roles and routing for Azure Static Web Apps
+frontend/build.js             `npm run build` copies src/ and the config to dist/
+api/function_app.py           Azure Functions (Python): /api/summary, /api/journals, /api/lines, ...
+api/queries.py                SQL; filter values are bound as Databricks named parameters
+api/databricks_client.py      Databricks SQL Statement Execution API client (requests only)
+.github/workflows/azure-static-web-apps.yml  deploys on every push to main
 ```
 
-One process serves both the API and the page. The app reads `PORT` and binds `0.0.0.0`. `GET /health` returns 200 with no database call.
+Hosted on **Azure Static Web Apps**: the page is static, `/api/*` runs as the app's managed Python functions. Excel export is built in the browser from paged API calls, so no single request runs long.
 
-## Configuration (App Settings)
+## Azure setup
 
-| Setting | Value |
+1. **Deployment token**: in the Azure Portal, open the Static Web App, choose *Manage deployment token*, copy it, and add it to this GitHub repo as the Actions secret `AZURE_STATIC_WEB_APPS_API_TOKEN`.
+2. **Environment variables** (Static Web App, *Settings > Environment variables*, Production):
+
+| Name | Value |
 |---|---|
 | `DATABRICKS_HOST` | Workspace host, e.g. `adb-1234567890123456.7.azuredatabricks.net` |
-| `DATABRICKS_HTTP_PATH` | SQL warehouse HTTP path, e.g. `/sql/1.0/warehouses/abc123` |
-| `DATABRICKS_CLIENT_ID` and `DATABRICKS_CLIENT_SECRET` | Databricks service principal (preferred) |
-| `DATABRICKS_TOKEN` | Personal access token, only if a service principal isn't available |
-| `QUERY_CACHE_SECONDS` | Optional, default 300 |
+| `DATABRICKS_WAREHOUSE_ID` | SQL warehouse ID (or `DATABRICKS_HTTP_PATH` = `/sql/1.0/warehouses/<id>`) |
+| `DATABRICKS_CLIENT_ID` | Databricks service principal application ID |
+| `DATABRICKS_CLIENT_SECRET` | Its OAuth secret |
 
-The identity needs `SELECT` on the tables used in `backend/queries.py` and `CAN USE` on the warehouse. Every signed-in user sees data through this one identity, so gate the app behind Microsoft Entra sign-in. The data includes employee and vendor names.
+   `DATABRICKS_TOKEN` can be used instead of the service principal. The identity needs `SELECT` on the tables in `api/queries.py` and `CAN USE` on the warehouse.
+3. **Who can sign in**: every page and API call requires the role `gjv_reviewer`. Invite people under *Settings > Role management > Invite* with provider *Microsoft Entra ID* and role `gjv_reviewer`. Signed-in people without the role see a "no access" page.
+4. **Deploy**: merge to `main` (or run the workflow manually).
 
-Without these settings the page loads and `/api/*` returns 503 with a message saying what is missing.
+Every signed-in user sees data through the one Databricks identity above. The data includes employee and vendor names.
 
-## Run locally
+## Run the API locally
 
 ```bash
-cd frontend && npm run build && cd ..
-pip install -r requirements.txt
-cd backend && PORT=8000 uvicorn app:app --host 0.0.0.0 --port 8000
+cd frontend && npm run build
+cd ../api && pip install -r requirements.txt && func start   # needs Azure Functions Core Tools
 ```
-
-## Deploying to Azure App Service
-
-This repo holds the application only. The Azure infrastructure (Bicep, `infra/deploy.sh`, `infra/setup-github-oidc.sh`, `infra/setup-entra-auth.sh`), `deploy.config` and the GitHub Actions deploy workflow come from the organisation template `HUD4BEAUTY/auto_deployment_setup_demo` and still need to be added before the first deployment.

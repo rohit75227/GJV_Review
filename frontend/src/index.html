@@ -10,7 +10,7 @@
 <body>
 <main class="gj">
   <header class="gj-head">
-    <p class="gj-eyebrow">D365 general journals · journal name GJV · 2026 onwards</p>
+    <p class="gj-eyebrow">D365 general journals · journal name GJV · 2026 onwards · <a href="/.auth/logout">Sign out</a></p>
     <h1>GJV Journal Register</h1>
     <p class="gj-lede">From <b data-k="first_date"></b> to <b data-k="last_date"></b>, <b data-k="creators"></b> people created <b data-k="journals"></b> GJV journals across <b data-k="entities"></b> legal entities, and <b data-k="open_journals"></b> of them are not posted yet.</p>
   </header>
@@ -99,9 +99,11 @@
       <li>Amounts are in each line's transaction currency, so totals are only added within one currency.</li>
       <li>Export to Excel saves Summary, Journals and Lines sheets with every journal and line that matches the filters, up to 200,000 lines.</li>
       <li>Results are cached on the server for 5 minutes.</li>
+      <li>Only invited people can sign in. Everyone who can sign in sees the same data.</li>
     </ul>
   </details>
 </main>
+<script src="/assets/xlsx.js"></script>
 <script src="/assets/app.js"></script>
 </body>
 </html>

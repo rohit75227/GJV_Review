@@ -15,6 +15,7 @@
   let lastMonth = null, lastEntity = null;
 
   const qs = (extra) => new URLSearchParams({ ...filters, ...(extra || {}) }).toString();
+  // 401: the sign-in expired; SWA answers API calls with 401 rather than a redirect.
   async function api(path, extra) {
     const res = await fetch(`/api/${path}?${qs(extra)}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
     if (res.status === 401 || res.status === 403) throw new Error('Your sign-in has expired. Reload the page to sign in again.');
@@ -67,20 +68,60 @@
   $('l-next').addEventListener('click', () => { lpage += 1; loadLines(); });
   $('l-clear').addEventListener('click', () => { journal = ''; lpage = 0; loadLines(); loadJournals(); });
 
-  // ---------- export
+  // ---------- export (built in the browser from paged API calls)
+  const JCOLS = [
+    { label: 'Journal', key: 'journalnum', width: 20 }, { label: 'Legal entity', key: 'le', width: 11 }, { label: 'Description', key: 'description', width: 50 },
+    { label: 'Created by', key: 'createdby', width: 18 }, { label: 'Status', key: 'status', width: 12 }, { label: 'Posted at', key: 'posted_at', width: 17 },
+    { label: 'First line date', key: 'first_date', type: 'date', width: 14 }, { label: 'Last line date', key: 'last_date', type: 'date', width: 14 },
+    { label: 'Vouchers', key: 'vouchers', type: 'int', width: 10 }, { label: 'Lines', key: 'lines', type: 'int', width: 9 }, { label: 'Currencies', key: 'currencies', width: 14 },
+    { label: 'Debit', key: 'debit', type: 'money', width: 18 }, { label: 'Credit', key: 'credit', type: 'money', width: 18 }];
+  const LCOLS = [
+    { label: 'Date', key: 'transdate', type: 'date', width: 12 }, { label: 'Journal', key: 'journalnum', width: 20 }, { label: 'Voucher', key: 'voucher', width: 18 },
+    { label: 'Legal entity', key: 'le', width: 11 }, { label: 'Line', key: 'line', type: 'int', width: 7 },
+    { label: 'Account type', key: 'account_type', width: 13 }, { label: 'Account', key: 'account', width: 28 }, { label: 'Main account', key: 'gl_account', width: 13 }, { label: 'Account name', key: 'account_name', width: 34 },
+    { label: 'Offset type', key: 'offset_type', width: 12 }, { label: 'Offset account', key: 'offset_account', width: 28 }, { label: 'Offset main account', key: 'offset_gl', width: 13 }, { label: 'Offset name', key: 'offset_name', width: 34 },
+    { label: 'Debit', key: 'debit', type: 'money', width: 16 }, { label: 'Credit', key: 'credit', type: 'money', width: 16 }, { label: 'Currency', key: 'currency', width: 9 },
+    { label: 'Exchange rate', key: 'exch_rate', type: 'num', width: 12 }, { label: 'Transaction type', key: 'transaction_type', width: 18 }, { label: 'Posting type', key: 'posting_type', width: 20 },
+    { label: 'Posting profile', key: 'posting_profile', width: 13 }, { label: 'Line text', key: 'description', width: 50 }, { label: 'Invoice', key: 'invoice', width: 14 },
+    { label: 'Document', key: 'document', width: 14 }, { label: 'Created by', key: 'created_by', width: 18 }, { label: 'Status', key: 'status', width: 12 }, { label: 'Journal description', key: 'journal_description', width: 40 }];
+  const MAX_LINES = 200000;
   $('x-export').addEventListener('click', async () => {
-    const btn = $('x-export'), st = $('x-status');
-    btn.disabled = true; st.dataset.tone = ''; st.textContent = 'Building the Excel file. A full year can take a minute or two.';
+    const btn = $('x-export'), st = $('x-status'), f = { ...filters };
+    const say = (t, tone) => { st.dataset.tone = tone || ''; st.textContent = t; };
+    btn.disabled = true;
     try {
-      const res = await fetch(`/api/export?${qs()}`, { credentials: 'same-origin' });
-      if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error || b.detail || `The server answered ${res.status}.`); }
-      const blob = await res.blob();
-      const cd = res.headers.get('Content-Disposition') || '';
-      const name = (/filename="([^"]+)"/.exec(cd) || [])[1] || 'GJV journals.xlsx';
+      let jrows = [], page = 0, total = 0;
+      do {
+        say(`Loading journals… ${fmtInt(jrows.length)}`);
+        const r = await api('journals', { ...f, page, size: 2000 });
+        total = r.total; jrows = jrows.concat(r.rows); page += 1;
+        if (!r.rows.length) break;
+      } while (jrows.length < total);
+      let lrows = [], got = 0; page = 0;
+      do {
+        say(`Loading journal lines… ${fmtInt(lrows.length)}`);
+        const r = await api('lines', { ...f, page, size: 4000 });
+        got = r.rows.length; lrows = lrows.concat(r.rows); page += 1;
+      } while (got === 4000 && lrows.length < MAX_LINES);
+      const cut = got === 4000;
+      say(`Building the workbook (${fmtInt(jrows.length)} journals, ${fmtInt(lrows.length)} lines)…`);
+      await new Promise((r) => setTimeout(r, 30));
+      const ACC = { '-1': 'Any account type', 0: 'Ledger (GL)', 1: 'Customer', 2: 'Vendor', 6: 'Bank', 5: 'Fixed assets' };
+      const STATUS = { '': 'Posted and not posted', posted: 'Posted', open: 'Not posted' };
+      const info = [['Report', 'GJV Journal Register (D365 general journals, journal name GJV)'], ['Exported at', d3.timeFormat('%Y-%m-%d %H:%M')(new Date())],
+        ['From', f.from], ['To', f.to], ['Legal entity', f.le || 'All entities'], ['Created by', f.creator || 'Everyone'], ['Status', STATUS[f.status]],
+        ['Account type', ACC[f.acctype]], ['Account code', f.acct || 'Any'], ['Search', f.q || 'None'],
+        ['Journals exported', jrows.length], ['Lines exported', lrows.length],
+        ['Note', 'Only lines dated 1 January 2026 or later are included. Amounts are in each line\'s transaction currency.']];
+      if (cut) info.push(['Warning', `Lines stop at ${fmtInt(MAX_LINES)}. Narrow the filters and export again for the rest.`]);
+      const blob = window.gjXlsx.workbook([
+        { name: 'Summary', cols: [{ label: 'Item', key: 'k', width: 20 }, { label: 'Value', key: 'v', width: 90 }], rows: info.map(([k, v]) => ({ k, v: String(v) })) },
+        { name: 'Journals', cols: JCOLS, rows: jrows }, { name: 'Lines', cols: LCOLS, rows: lrows }]);
+      const name = `GJV journals ${f.from} to ${f.to}${f.le ? ' ' + f.le : ''}.xlsx`;
       const url = URL.createObjectURL(blob); const a = document.createElement('a');
-      a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000);
-      st.dataset.tone = 'ok'; st.textContent = `Downloaded ${name}.`;
-    } catch (e) { st.dataset.tone = 'bad'; st.textContent = 'Export failed. ' + e.message; }
+      a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000);
+      say(`Downloaded ${name}: ${fmtInt(jrows.length)} journals and ${fmtInt(lrows.length)} lines.` + (cut ? ' Some lines were left out; see the Summary sheet.' : ''), 'ok');
+    } catch (e) { say('Export failed. ' + e.message, 'bad'); }
     finally { btn.disabled = false; }
   });
 
