@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+frontend/dist/
+frontend/node_modules/
+.env
+*.xlsx
