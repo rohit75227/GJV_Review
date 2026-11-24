@@ -17,14 +17,14 @@ frontend/build.js             `npm run build` copies src/ and the config to dist
 api/function_app.py           Azure Functions (Python): /api/summary, /api/journals, /api/lines, ...
 api/queries.py                SQL; filter values are bound as Databricks named parameters
 api/databricks_client.py      Databricks SQL Statement Execution API client (requests only)
-.github/workflows/azure-static-web-apps.yml  deploys on every push to main
+.github/workflows/azure-static-web-apps-witty-grass-0c45f1510.yml  deploys on every push (added by Azure)
 ```
 
 Hosted on **Azure Static Web Apps**: the page is static, `/api/*` runs as the app's managed Python functions. Excel export is built in the browser from paged API calls, so no single request runs long.
 
 ## Azure setup
 
-1. **Deployment token**: in the Azure Portal, open the Static Web App, choose *Manage deployment token*, copy it, and add it to this GitHub repo as the Actions secret `AZURE_STATIC_WEB_APPS_API_TOKEN`.
+1. **Deployment**: the Static Web App is linked to this repo. Azure added `.github/workflows/azure-static-web-apps-witty-grass-0c45f1510.yml` and its token secret, and deploys every push to `claude/gjv-journal-register`.
 2. **Environment variables** (Static Web App, *Settings > Environment variables*, Production):
 
 | Name | Value |
@@ -36,7 +36,7 @@ Hosted on **Azure Static Web Apps**: the page is static, `/api/*` runs as the ap
 
    `DATABRICKS_TOKEN` can be used instead of the service principal. The identity needs `SELECT` on the tables in `api/queries.py` and `CAN USE` on the warehouse.
 3. **Who can sign in**: every page and API call requires the role `gjv_reviewer`. Invite people under *Settings > Role management > Invite* with provider *Microsoft Entra ID* and role `gjv_reviewer`. Signed-in people without the role see a "no access" page.
-4. **Deploy**: merge to `main` (or run the workflow manually).
+4. **Deploy**: push to `claude/gjv-journal-register`.
 
 Every signed-in user sees data through the one Databricks identity above. The data includes employee and vendor names.
 
