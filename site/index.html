@@ -1,0 +1,1867 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GJV Journal Register</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* ============================================================================
+   Consolidated Trial Balance -- Pulse Atlas shell.
+
+   The design system is the Pulse Atlas's, which is itself the Huda Beauty intranet
+   template of 3 September 2026: Power Pink #F20A82 on warm white #FFFCFD, blush #FFF0F7
+   for tinted surfaces, Bricolage Grotesque on headings, DM Sans on text, JetBrains Mono
+   for anything read character by character. This page is almost entirely figures, so
+   the mono face does far more work here than it does on the atlas: every amount, code,
+   currency and period label is set in it, tabular-nums, so columns of numbers line up
+   digit under digit.
+
+   LIGHT ONLY. The atlas dropped its dark theme on 2026-09-10 and this page follows it,
+   so there is no @media (prefers-color-scheme) block and no [data-theme] block anywhere
+   below. `color-scheme:light` tells the browser not to invent a dark treatment of its
+   own. Do not reintroduce a dark palette here without doing it on the atlas first: two
+   pages in the same shell disagreeing about whether dark exists is worse than neither
+   having it.
+
+   THE CLASS NAMES ARE NOT MINE TO CHANGE. Every selector below is one the report's own
+   JavaScript emits (.banner, .segmented, .acct-combo-option, .col-total, td.neg and so
+   on). The brief was to change the look and not the logic, so this file re-dresses those
+   exact hooks rather than renaming them. If you add a component, add the class the
+   script already writes.
+   ============================================================================ */
+:root{
+  --r:16px; --r-sm:10px; --r-xs:6px; --r-lg:26px;
+  color-scheme:light;
+
+  /* Atlas palette, verbatim. */
+  --bg:#FFFCFD; --surface:#FFFFFF; --surface2:#F7F3F5; --surface3:#EFE6EB;
+  --border:#EBDDE4; --border2:#DFCAD6;
+  --text:#171315; --text2:#756B70; --text3:#A2949B;
+  --pink:#F20A82; --pink-dim:#FFF0F7; --pink-bd:#F6C9DF;
+  --pink-deep:#D9006C; --pink-light:#FF5AA8; --pink-ink:#8C154D;
+  --on-pink:#ffffff;
+  --ok:#15803d; --ok-dim:#e8f6ed; --ok-bd:#bfe3cd;
+  --bad:#c62828; --bad-dim:#fdeaea; --bad-bd:#f6c8c8;
+  --warn:#a86200; --warn-dim:#fdf1e0; --warn-bd:#f2d7ae;
+  --info:#6E2246; --info-dim:#FBEDF4; --info-bd:#EFD3E1;
+  --topbar-bg:rgba(255,252,253,.85);
+  --thead-bg:#1A1719; --thead-ink:rgba(255,255,255,.88);
+  --hero:linear-gradient(135deg,#FFFFFF 0%,#FFF8FB 56%,#FFE8F3 100%);
+  --footer-bg:linear-gradient(180deg,rgba(255,240,247,.58),rgba(255,255,255,.96));
+  --rail:linear-gradient(180deg,#FF5AA8,#F20A82,#B80058);
+  --shadow:0 18px 42px -24px rgba(242,10,130,.42);
+  --shadow-sm:0 10px 26px -20px rgba(92,21,55,.30);
+  --font:'DM Sans',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  --display:'Bricolage Grotesque','DM Sans',-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --maxw:1580px;
+
+  /* The report's own names, mapped onto the atlas palette. The script and the older
+     rules below still refer to these, so the mapping is the whole re-theme: change a
+     value here and it moves everywhere it is used. */
+  --accent:var(--pink);
+  --accent-ink:var(--on-pink);
+  --text-dim:var(--text2);
+  --total-row-bg:var(--pink-dim);
+  --total-row-border:var(--pink-bd);
+  /* The report's own name for the zebra/subrow tint (Vendor/Customer Aging's
+     drill-down rows use it directly). Same re-theme reasoning as the names
+     above -- added when those tabs were ported in and it turned out this one
+     name was never needed until then. */
+  --surface-2:var(--surface2);
+  /* A credit is not an error, so it is not the error red. This is the atlas ink pink,
+     dark enough to pass on white and clearly a different thing from the --bad red the
+     page uses when something is actually wrong. */
+  --neg:#A8004F;
+}
+
+*{box-sizing:border-box;}
+html,body{margin:0;}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:var(--font); font-size:15px; line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+  background-image:
+    radial-gradient(circle at 8% -4%,rgba(242,10,130,.105),transparent 38%),
+    radial-gradient(circle at 94% 5%,rgba(255,90,168,.07),transparent 32%);
+  background-attachment:fixed;
+}
+.wrap{max-width:var(--maxw); margin:0 auto; padding:0 24px;}
+
+/* The report's two legacy type helpers. `.display` is used for empty-state headlines and
+   `.eyebrow` labels every control, so both keep their names and take the atlas faces. */
+.display{font-family:var(--display); font-weight:800; letter-spacing:-.025em;}
+.eyebrow{
+  font-family:var(--mono); text-transform:uppercase;
+  letter-spacing:.14em; font-size:10px; font-weight:600; color:var(--text3);
+}
+
+/* ---------- topbar ---------- */
+.topbar{
+  position:sticky; top:0; z-index:60;
+  background:var(--topbar-bg); backdrop-filter:blur(18px);
+  border-top:3px solid var(--pink);
+  border-bottom:1px solid var(--border);
+  box-shadow:0 8px 30px rgba(19,10,14,.035);
+}
+.topbar-in{
+  max-width:var(--maxw); margin:0 auto; padding:0 24px;
+  height:62px; display:flex; align-items:center; gap:14px;
+}
+.brand{display:flex; align-items:center; gap:10px;}
+.brand-logo{height:21px; width:auto; display:block; flex:none;}
+.brand span{
+  display:inline-flex; align-items:center; align-self:center; line-height:1;
+  background:var(--pink); color:var(--on-pink);
+  box-shadow:0 5px 14px rgba(242,10,130,.22);
+  border-radius:999px; padding:4px 9px;
+  font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.2em;
+}
+.topbar-spacer{flex:1;}
+.topbar-meta{font-family:var(--mono); font-size:11px; color:var(--text3); letter-spacing:.02em;}
+
+/* ---------- masthead ---------- */
+/* The atlas hero: a blush gradient card with a pink rail down its left edge, the title
+   beside its standfirst rather than above it, and equal margins top and bottom so the
+   card sits centred between the topbar and the tab bar. */
+header.masthead{
+  position:relative; overflow:hidden;
+  margin:10px 0; padding:22px 28px;
+  background:var(--hero);
+  border:1px solid var(--border); border-radius:var(--r-lg);
+  box-shadow:0 28px 70px -40px rgba(106,0,53,.45);
+  outline:1px solid rgba(242,10,130,.08);
+}
+header.masthead::before{
+  content:""; position:absolute; inset:0 auto 0 0; width:5px;
+  background:var(--rail); pointer-events:none;
+}
+.masthead-in{
+  display:grid; grid-template-columns:auto minmax(0,1fr);
+  gap:0 34px; align-items:center;
+}
+.masthead-t{min-width:0;}
+.masthead-d{min-width:0; padding-left:34px; border-left:1px solid var(--border);}
+@media (max-width:900px){
+  .masthead-in{grid-template-columns:1fr; gap:12px;}
+  .masthead-d{padding-left:0; border-left:0;}
+}
+@media (max-width:620px){ header.masthead{padding:16px 18px; margin:8px 0;} }
+h1{
+  margin:0; font-family:var(--display);
+  font-size:clamp(24px,3.1vw,36px); line-height:1.02;
+  font-weight:800; letter-spacing:-.04em; text-transform:uppercase;
+  text-wrap:balance;
+}
+h1 em{font-style:normal; color:var(--pink);}
+.dek{margin:0; font-size:15px; line-height:1.5; color:var(--text2); text-wrap:pretty;}
+.dek strong{color:var(--text); font-weight:600;}
+
+/* ---------- view tabs ---------- */
+/* The atlas pill nav. The markup is the report's own <nav class="view-tabs"> with four
+   bare <button data-view>, so these rules target the buttons directly rather than a
+   .tab class the script does not write. */
+.view-tabs{
+  position:sticky; top:66px; z-index:50;
+  background:var(--topbar-bg); backdrop-filter:blur(18px);
+  border-bottom:1px solid var(--border);
+  margin:0 0 4px;
+}
+.view-tabs-in{
+  max-width:var(--maxw); margin:0 auto; padding:10px 24px;
+  display:flex; gap:6px; overflow-x:auto; scrollbar-width:none;
+}
+.view-tabs-in::-webkit-scrollbar{display:none;}
+.view-tabs button{
+  font:inherit; font-size:12.5px; font-weight:600;
+  white-space:nowrap;
+  background:none; border:0; border-radius:999px;
+  color:var(--text2); padding:9px 16px; cursor:pointer;
+  transition:background .2s,color .2s;
+}
+.view-tabs button:hover{background:var(--pink-dim); color:var(--pink-deep);}
+.view-tabs button.active{
+  background:var(--pink); color:var(--on-pink); font-weight:700;
+  box-shadow:0 5px 14px rgba(242,10,130,.18);
+}
+.view-tabs button:focus-visible{outline:2px solid var(--pink); outline-offset:2px;}
+
+.view-panel[hidden]{display:none;}
+main{display:block; padding:0 0 8px;}
+
+/* ---------- control bar ---------- */
+.controls{
+  display:flex; align-items:flex-end; gap:14px; flex-wrap:wrap;
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--r); box-shadow:var(--shadow-sm);
+  padding:14px 16px; margin:14px 0 16px;
+}
+.control-group{display:flex; flex-direction:column; gap:6px; min-width:0;}
+.control-group[hidden]{display:none;}
+.control-group .eyebrow{margin:0;}
+
+select{
+  font:inherit; font-size:13px; font-family:var(--mono);
+  color:var(--text); background:var(--surface);
+  border:1px solid var(--border2); border-radius:var(--r-sm);
+  padding:8px 11px; min-width:190px; cursor:pointer;
+  transition:border-color .15s ease, box-shadow .15s ease;
+}
+select:hover{border-color:var(--pink);}
+select:focus-visible{outline:none; border-color:var(--pink); box-shadow:0 0 0 3px var(--pink-dim);}
+
+/* Segmented control: the atlas pill nav shrunk into a bordered group. */
+.segmented{
+  display:inline-flex; gap:3px; padding:3px;
+  background:var(--surface2); border:1px solid var(--border);
+  border-radius:999px;
+}
+.segmented button{
+  font:inherit; font-size:12px; font-weight:600;
+  background:none; border:0; border-radius:999px;
+  color:var(--text2); padding:7px 14px; cursor:pointer; white-space:nowrap;
+  transition:background .15s ease, color .15s ease;
+}
+.segmented button:hover{color:var(--pink-deep);}
+.segmented button.active{
+  background:var(--pink); color:var(--on-pink);
+  box-shadow:0 4px 12px rgba(242,10,130,.20);
+}
+.segmented button:focus-visible{outline:2px solid var(--pink); outline-offset:2px;}
+
+.btn-export,.btn-toggle{
+  font:inherit; font-size:12px; font-weight:700; letter-spacing:.02em;
+  border-radius:999px; padding:9px 18px; cursor:pointer;
+  transition:filter .15s ease, transform .15s ease, background .15s ease, color .15s ease;
+}
+.btn-export{
+  background:var(--pink); color:var(--on-pink); border:1px solid var(--pink);
+  box-shadow:0 6px 16px rgba(242,10,130,.22);
+}
+.btn-export:hover:not(:disabled){filter:brightness(1.06); transform:translateY(-1px);}
+.btn-export:active:not(:disabled){transform:translateY(0);}
+.btn-export:disabled{
+  background:var(--surface2); color:var(--text3);
+  border-color:var(--border); box-shadow:none; cursor:not-allowed;
+}
+.btn-export:focus-visible,.btn-toggle:focus-visible{outline:2px solid var(--pink); outline-offset:2px;}
+.btn-toggle{background:var(--surface); color:var(--text2); border:1px solid var(--border2);}
+.btn-toggle:hover{border-color:var(--pink); color:var(--pink-deep);}
+.btn-toggle.active{background:var(--pink-dim); border-color:var(--pink-bd); color:var(--pink-ink);}
+
+.status-pill{
+  display:inline-flex; align-items:center; gap:8px; margin-left:auto;
+  font-family:var(--mono); font-size:11px; color:var(--text2);
+  background:var(--surface2); border:1px solid var(--border);
+  border-radius:999px; padding:7px 13px;
+}
+.status-dot{
+  width:7px; height:7px; border-radius:50%; background:var(--ok); flex:none;
+  box-shadow:0 0 0 3px var(--ok-dim);
+}
+.status-dot.stale{background:var(--warn); box-shadow:0 0 0 3px var(--warn-dim);}
+
+/* ---------- account search combo ---------- */
+.acct-combo{position:relative; min-width:280px;}
+.acct-combo-input{
+  font:inherit; font-size:13px; font-family:var(--mono); width:100%;
+  color:var(--text); background:var(--surface);
+  border:1px solid var(--border2); border-radius:var(--r-sm);
+  padding:8px 11px;
+  transition:border-color .15s ease, box-shadow .15s ease;
+}
+.acct-combo-input::placeholder{color:var(--text3); font-family:var(--font);}
+.acct-combo-input:hover{border-color:var(--pink);}
+.acct-combo-input:focus-visible{outline:none; border-color:var(--pink); box-shadow:0 0 0 3px var(--pink-dim);}
+.acct-combo-panel{
+  position:absolute; z-index:70; top:calc(100% + 5px); left:0; right:0;
+  max-height:320px; overflow-y:auto;
+  background:var(--surface); border:1px solid var(--border2);
+  border-radius:var(--r-sm); box-shadow:0 24px 54px -26px rgba(92,21,55,.45);
+}
+.acct-combo-option{
+  display:flex; align-items:baseline; gap:10px;
+  padding:8px 11px; cursor:pointer;
+  font-family:var(--mono); font-size:12.5px; color:var(--text);
+  border-bottom:1px solid var(--surface2);
+}
+.acct-combo-option:last-child{border-bottom:0;}
+.acct-combo-option:hover,.acct-combo-option.active{background:var(--pink-dim); color:var(--pink-ink);}
+.acct-combo-option .acct-combo-name{
+  font-family:var(--font); font-size:12.5px; color:var(--text2);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.acct-combo-empty{padding:12px; font-size:13px; color:var(--text3);}
+
+/* ---------- banners ---------- */
+/* The atlas .note: a tinted box with a coloured rule down its left edge. Default is the
+   informational blush; .good takes the green, .simulated the amber. */
+.banner{
+  background:var(--info-dim); border:1px solid var(--info-bd);
+  border-left:3px solid var(--info);
+  border-radius:var(--r-sm); padding:11px 14px; margin:0 0 10px;
+  font-size:13.5px; color:var(--text2);
+}
+.banner strong{color:var(--text); font-weight:700;}
+.banner.good{background:var(--ok-dim); border-color:var(--ok-bd); border-left-color:var(--ok);}
+.banner.good strong{color:var(--ok);}
+.banner.simulated{background:var(--warn-dim); border-color:var(--warn-bd); border-left-color:var(--warn);}
+.banner.simulated strong{color:var(--warn);}
+.banner.info{background:var(--info-dim); border-color:var(--info-bd); border-left-color:var(--info);}
+.banner-row{display:flex; align-items:center; gap:10px;}
+.banner-summary{flex:1; min-width:0;}
+.banner-link{
+  font:inherit; font-size:11px; font-weight:700; font-family:var(--mono);
+  text-transform:uppercase; letter-spacing:.08em;
+  background:none; border:0; color:var(--pink-deep); cursor:pointer; padding:2px 4px;
+  border-bottom:1px solid transparent; flex:none;
+}
+.banner-link:hover{border-bottom-color:var(--pink);}
+.banner-close{
+  font:inherit; font-size:17px; line-height:1;
+  background:none; border:0; color:var(--text3); cursor:pointer;
+  padding:0 2px; flex:none;
+}
+.banner-close:hover{color:var(--pink);}
+.banner-detail{
+  margin-top:9px; padding-top:9px; border-top:1px solid var(--border);
+  font-size:13px; line-height:1.55;
+}
+.banner .warning-item{
+  display:inline-block; font-family:var(--mono); font-size:11.5px;
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--r-xs); padding:2px 7px; margin:2px 0;
+  cursor:help;
+}
+.banner .hint{color:var(--text3); font-size:12.5px;}
+
+/* ---------- tables ---------- */
+.table-card{
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--r); box-shadow:var(--shadow-sm); overflow:hidden;
+}
+.table-scroll{overflow:auto; max-height:calc(100vh - 300px);}
+table{border-collapse:separate; border-spacing:0; width:100%; font-size:13px;}
+
+thead th{
+  position:sticky; top:0; z-index:3;
+  background:var(--thead-bg); color:var(--thead-ink);
+  font-family:var(--mono); font-size:10px; font-weight:600;
+  text-transform:uppercase; letter-spacing:.08em;
+  text-align:right; padding:11px 13px; white-space:nowrap;
+  border-bottom:1px solid var(--thead-bg);
+}
+thead th.col-account,thead th.col-name,thead th.col-ccy,
+thead th.col-company,thead th.col-acct{text-align:left;}
+/* The first two columns stay put while the entity columns scroll sideways, which is the
+   only way a 16 company table is readable: without it you lose which account a row is
+   four columns in. z-index 4 keeps them above the rest of the sticky header row. */
+thead th.col-account{position:sticky; left:0; z-index:4; min-width:96px;}
+thead th.col-name{position:sticky; left:96px; z-index:4; min-width:220px;}
+thead th.col-name.with-ccy{left:96px;}
+thead th.col-ccy{min-width:64px;}
+thead th.col-company{min-width:80px;}
+thead th.col-acct{min-width:170px;}
+th.col-total{border-left:2px solid rgba(255,255,255,.22);}
+/* Sortable amount-column headers: clicking toggles highest-to-lowest / lowest-to-highest. */
+th.sortable{cursor:pointer; user-select:none;}
+th.sortable:hover{filter:brightness(1.12);}
+/* The currency each column is denominated in, under its heading. */
+.ccy-tag{
+  display:block; font-size:9px; font-weight:500; letter-spacing:.06em;
+  color:var(--pink-light); margin-top:2px; text-transform:none;
+}
+
+tbody td{
+  padding:9px 13px; text-align:right; white-space:nowrap;
+  font-family:var(--mono); font-variant-numeric:tabular-nums;
+  border-bottom:1px solid var(--border);
+  background:var(--surface);
+}
+tbody td.col-account,tbody td.col-name,tbody td.col-ccy,tbody td.col-company{
+  position:sticky; z-index:2; text-align:left;
+}
+tbody td.col-account{left:0; font-weight:700; min-width:96px;}
+tbody td.col-name{
+  left:96px; min-width:220px; max-width:340px;
+  color:var(--text2); font-family:var(--font);
+  overflow:hidden; text-overflow:ellipsis;
+}
+tbody td.col-ccy{font-weight:700; color:var(--pink); min-width:64px;}
+tbody td.col-company{font-weight:700; color:var(--pink); min-width:80px;}
+tbody td.col-acct{text-align:left; white-space:normal; font-weight:600; min-width:170px; font-family:var(--font);}
+
+/* Zebra striping and the hover row have to beat the sticky columns' own background --
+   those cells paint one deliberately, which is what stops the scrolling columns showing
+   through them. These two rules win on specificity: `tbody tr:nth-child(even) td` and
+   `tbody tr:hover td` each score a class-equivalent plus three elements, against
+   `tbody td.col-account`'s one class plus two. Add a rule for a frozen column that is
+   any more specific than those and the striping will stop at the frozen edge. */
+tbody tr:nth-child(even) td{background:var(--surface2);}
+tbody tr:hover td{background:var(--pink-dim);}
+
+td.neg{color:var(--neg);}
+td.zero{color:var(--text3);}
+td.col-total{font-weight:700; border-left:2px solid var(--border);}
+td.na,th.na-note{color:var(--text3); font-style:italic; font-weight:400;}
+/* A cell carrying a not-yet-posted adjustment. Dotted, because it is a note about the
+   figure rather than a problem with it. */
+td.simulated{
+  background:var(--warn-dim) !important;
+  border-bottom-color:var(--warn-bd);
+  text-decoration:underline dotted var(--warn); text-underline-offset:3px; cursor:help;
+}
+
+tfoot td{
+  position:sticky; bottom:0; z-index:3;
+  padding:12px 13px; text-align:right; white-space:nowrap;
+  font-family:var(--mono); font-variant-numeric:tabular-nums;
+  font-weight:700; color:var(--pink-ink);
+  background:var(--total-row-bg);
+  border-top:2px solid var(--total-row-border);
+}
+tfoot td.col-account,tfoot td.col-name{position:sticky; z-index:4; text-align:left;}
+tfoot td.col-account{left:0;}
+tfoot td.col-name{left:96px;}
+tfoot td.col-total{border-left:2px solid var(--total-row-border);}
+
+tr.section-row td{
+  background:var(--surface3); color:var(--text);
+  font-family:var(--font); font-weight:700; text-align:left;
+  font-size:12px; text-transform:uppercase; letter-spacing:.08em;
+}
+tr.subtotal-row td{
+  background:var(--pink-dim); font-weight:700; color:var(--pink-ink);
+  border-top:1px solid var(--pink-bd);
+}
+tr.subtotal-row td.col-account,tr.subtotal-row td.col-name{background:var(--pink-dim);}
+
+ /* The Intercompany tab writes the account id and then this span for the account's
+   name, with no separator between them, so `display:block` is doing real work: without
+   it the two run together as "2112122Accounts Payable - HB Cayman Blue LLC". */
+.acct-name{
+  display:block; margin-top:2px;
+  color:var(--text2); font-family:var(--font); font-weight:400; font-size:11px;
+}
+
+/* The per-currency breakdown that the Intercompany tab shows under Details. */
+.ic-txn-breakdown{
+  margin-top:5px; padding-top:5px; border-top:1px dashed var(--border2);
+  font-size:11px; display:grid; gap:2px;
+}
+.ic-txn-line{display:flex; justify-content:space-between; gap:10px;}
+.ic-txn-ccy{color:var(--text3); font-weight:600;}
+
+/* ---------- empty state ---------- */
+.empty-state{
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--r); box-shadow:var(--shadow-sm);
+  padding:56px 28px; text-align:center;
+}
+.empty-state .display{
+  font-size:22px; color:var(--text); margin:0 0 8px;
+  text-transform:uppercase; letter-spacing:-.02em;
+}
+.empty-state p{margin:0 auto; max-width:60ch; color:var(--text2); font-size:14px;}
+.empty-state code{
+  font-family:var(--mono); font-size:.9em;
+  background:var(--surface2); border:1px solid var(--border);
+  border-radius:var(--r-xs); padding:1px 5px;
+}
+
+/* ---------- footnotes ---------- */
+/* One per tab, holding that tab's definitions. The atlas footer treatment: a blush
+   gradient panel with a rounded top edge. */
+footer.notes{
+  margin:16px 0 0; padding:20px 22px 24px;
+  background:var(--footer-bg);
+  border:1px solid var(--border); border-top:2px solid var(--pink-bd);
+  border-radius:var(--r-lg) var(--r-lg) var(--r) var(--r);
+  font-size:12.5px; color:var(--text2); line-height:1.55;
+  display:grid; gap:7px;
+}
+footer.notes .wordmark{
+  font-family:var(--display); font-weight:800; font-size:11px;
+  text-transform:uppercase; letter-spacing:.16em; color:var(--pink);
+}
+footer.notes code{
+  font-family:var(--mono); font-size:.9em;
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--r-xs); padding:1px 5px;
+}
+footer.notes strong{color:var(--text); font-weight:600;}
+footer.notes ul{margin:4px 0 0; padding-left:18px;}
+
+/* ---------- page footer ---------- */
+footer.pagefoot{
+  margin-top:34px; border-top:1px solid var(--border);
+  background:var(--footer-bg);
+  border-radius:var(--r-lg) var(--r-lg) 0 0;
+  padding:28px 30px 40px;
+  font-size:12.5px; color:var(--text2);
+}
+footer.pagefoot strong{color:var(--text);}
+footer.pagefoot p{margin:0 0 6px;}
+footer.pagefoot .foot-mono{font-family:var(--mono); font-size:11px; color:var(--text3);}
+
+@media (max-width:720px){
+  .controls{padding:12px; gap:10px;}
+  select,.acct-combo{min-width:0; width:100%;}
+  .control-group{flex:1 1 200px;}
+  .status-pill{margin-left:0;}
+  .table-scroll{max-height:none;}
+}
+
+/* ---------- user access ---------- */
+/* The fifth tab, shown only to an admin. Every selector here is namespaced `ac-`
+   and none of them existed before, which is deliberate: the report's own script
+   emits .banner, .segmented, .col-total and a dozen more, and a settings pane that
+   borrowed one of those names would re-dress a table somewhere else in the page.
+   The one exception is `table`, which is styled globally for figures - right
+   aligned, mono, tabular-nums - so .ac-tbl undoes that for a table of names. */
+.tab-admin{
+  margin-left:6px; padding-left:16px;
+  border-left:1px solid var(--border) !important;
+  border-radius:0 999px 999px 0;
+}
+/* Capped rather than run to the page's 1580px. The rest of this report is tables of
+   figures sixteen entities wide and wants every pixel; this is a settings pane of four
+   columns, and stretched to the full width it puts half a screen of nothing between a
+   person's name and the checkbox that governs them. */
+.ac-sec{
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--r); box-shadow:var(--shadow-sm);
+  padding:22px 24px 24px; margin:0 0 16px; max-width:1060px;
+}
+.ac-head{display:flex; align-items:baseline; gap:12px; margin:0 0 10px;}
+.ac-head h2{
+  margin:0; font-family:var(--display); font-size:17px; font-weight:800;
+  letter-spacing:-.02em; text-transform:uppercase; color:var(--text);
+}
+.ac-count{font-family:var(--mono); font-size:11px; color:var(--text3);}
+.ac-lead{margin:0 0 16px; font-size:13.5px; line-height:1.65; color:var(--text2); max-width:86ch;}
+.ac-bg{margin:14px 0 0; color:var(--text3); font-size:12.5px;}
+.ac-err{
+  background:var(--bad-dim); border:1px solid var(--bad-bd); color:var(--bad);
+  border-radius:var(--r-sm); padding:11px 14px; margin:0 0 14px; font-size:13px;
+}
+.ac-err b{font-weight:700;}
+
+.ac-tblwrap{
+  border:1px solid var(--border); border-radius:var(--r-sm); overflow:auto;
+}
+.ac-tbl{font-size:13px;}
+/* Undo the figures treatment: this table holds names, not amounts. */
+.ac-tbl thead th{
+  position:static; text-align:left; font-size:10px; padding:10px 14px;
+}
+.ac-tbl tbody td{
+  position:static; text-align:left; white-space:nowrap;
+  font-family:var(--font); font-variant-numeric:normal;
+  padding:12px 14px; vertical-align:top;
+}
+.ac-tbl tbody tr:last-child td{border-bottom:0;}
+.ac-tbl .ac-cperson{min-width:240px; white-space:normal;}
+.ac-tbl tbody td b{font-weight:700; color:var(--text);}
+.ac-mail{display:block; font-family:var(--mono); font-size:11px; color:var(--text2); margin-top:2px;}
+.ac-when{display:block; font-size:11px; color:var(--text3); margin-top:3px;}
+/* Your own row, badged. The one row where a change cannot be undone by you. */
+.ac-tbl tr.ac-me td{background:var(--pink-dim);}
+.ac-you{
+  font-family:var(--mono); font-size:9px; font-weight:600; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--pink-ink);
+  background:var(--surface); border:1px solid var(--pink-bd);
+  border-radius:999px; padding:2px 7px; vertical-align:middle;
+}
+.ac-dim{color:var(--text3); font-size:12.5px;}
+.ac-act{text-align:right !important;}
+
+.ac-sw{display:inline-flex; align-items:center; gap:8px; cursor:pointer; font-size:13px;}
+.ac-sw input{accent-color:var(--pink); width:15px; height:15px; cursor:pointer;}
+.ac-sw input:disabled{cursor:not-allowed;}
+.ac-sw input:disabled + span{color:var(--text3);}
+.ac-swf{padding:9px 0;}
+
+.ac-lnk{
+  font:inherit; font-size:12.5px; font-weight:600;
+  background:none; border:0; padding:0; cursor:pointer;
+  color:var(--pink-deep); text-decoration:underline; text-underline-offset:3px;
+}
+.ac-lnk:hover{color:var(--pink);}
+.ac-danger{color:var(--bad);}
+.ac-danger:hover{color:var(--bad); filter:brightness(1.15);}
+
+.ac-add{display:flex; flex-wrap:wrap; gap:14px; margin:0 0 16px;}
+.ac-f{display:flex; flex-direction:column; gap:5px; flex:1 1 230px; min-width:0;}
+.ac-f > span{
+  font-family:var(--mono); font-size:10px; font-weight:600;
+  letter-spacing:.08em; text-transform:uppercase; color:var(--text3);
+}
+.ac-f > span i{font-style:normal; text-transform:none; letter-spacing:0;}
+.ac-f input[type=text]{
+  font:inherit; font-size:13px; color:var(--text);
+  background:var(--surface); border:1px solid var(--border2);
+  border-radius:var(--r-sm); padding:10px 12px; min-width:0;
+}
+.ac-f input[type=text]:focus{outline:2px solid var(--pink); outline-offset:-1px; border-color:var(--pink);}
+.ac-actions{display:flex; align-items:center; gap:14px; flex-wrap:wrap;}
+.ac-btn{
+  font:inherit; font-size:12px; font-weight:700; letter-spacing:.02em;
+  border-radius:999px; padding:10px 20px; cursor:pointer;
+  background:var(--pink); color:var(--on-pink); border:1px solid var(--pink);
+  box-shadow:0 6px 16px rgba(242,10,130,.22);
+  transition:filter .15s ease, transform .15s ease;
+}
+.ac-btn:hover{filter:brightness(1.06); transform:translateY(-1px);}
+.ac-btn:active{transform:translateY(0);}
+.ac-btn:focus-visible{outline:2px solid var(--pink); outline-offset:2px;}
+.ac-status{font-size:12.5px; color:var(--text2);}
+.ac-status.err{color:var(--bad);}
+
+@media (max-width:720px){
+  .ac-sec{padding:16px;}
+  .ac-add{gap:10px;}
+  .ac-f{flex:1 1 100%;}
+}
+
+/* ============================================================================
+   Vendor/Customer Balance and Aging tabs: component CSS the original four
+   tabs never needed, ported from the Claude Artifact these tabs were copied
+   from. Everything below references the re-theme aliases above (--accent,
+   --text-dim, --total-row-bg, --border, --surface, --surface-2, --shadow),
+   so it already reads as Pulse Atlas rather than the artifact's own palette.
+   ============================================================================ */
+
+/* As on Date: the input itself, plus the custom calendar popup
+   (createDatePicker draws its own rather than relying on the browser's, so
+   it renders reliably inside this page's frame). */
+input.date-input{
+  font:inherit; font-size:13px; font-weight:600;
+  color:var(--text); background:var(--surface);
+  border:1px solid var(--border); border-radius:8px;
+  padding:8px 12px; cursor:pointer;
+  transition:border-color .15s ease;
+  color-scheme:light;
+}
+input.date-input:hover{ border-color:var(--accent); }
+input.date-input:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+input.date-input::-webkit-calendar-picker-indicator{ display:none; }
+.date-field{ position:relative; display:inline-flex; align-items:center; }
+.date-field input.date-input{ padding-right:36px; }
+.cal-btn{
+  position:absolute; right:5px; top:50%; transform:translateY(-50%);
+  appearance:none; border:none; background:transparent;
+  color:var(--text-dim); padding:4px; line-height:0; border-radius:6px; cursor:pointer;
+}
+.cal-btn:hover{ color:var(--accent); background:var(--total-row-bg); }
+.cal-btn:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+.cal-panel{
+  position:absolute; top:calc(100% + 6px); left:0; z-index:30; width:250px;
+  background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  box-shadow:var(--shadow); padding:10px;
+}
+.cal-head{ display:flex; align-items:center; gap:6px; margin-bottom:8px; }
+.cal-head select{ flex:1 1 auto; min-width:0; font-size:12px; padding:5px 22px 5px 8px; background-position:right 7px center; }
+.cal-nav{
+  appearance:none; flex:none; width:26px; height:26px;
+  border:1px solid var(--border); border-radius:6px; background:var(--surface);
+  color:var(--text); font-size:14px; line-height:1; cursor:pointer;
+}
+.cal-nav:hover:not(:disabled){ border-color:var(--accent); color:var(--accent); }
+.cal-nav:disabled{ opacity:.4; cursor:default; }
+.cal-nav:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+.cal-grid{ display:grid; grid-template-columns:repeat(7, 1fr); gap:2px; }
+.cal-dow{
+  text-align:center; font-size:10px; font-weight:700; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--text-dim); padding:4px 0;
+}
+.cal-day{
+  appearance:none; border:none; background:transparent; color:var(--text);
+  font:inherit; font-size:12px; font-variant-numeric:tabular-nums;
+  height:30px; border-radius:6px; cursor:pointer;
+}
+.cal-day:hover:not(:disabled){ background:var(--total-row-bg); }
+.cal-day:disabled{ color:var(--text-dim); opacity:.35; cursor:default; }
+.cal-day.today{ box-shadow:inset 0 0 0 1px var(--accent); }
+.cal-day.selected{ background:var(--accent); color:var(--accent-ink); font-weight:700; }
+.cal-day:focus-visible{ outline:2px solid var(--accent); outline-offset:-2px; }
+.cal-empty{ height:30px; }
+
+/* Multi-select filter (Vendor Group / Customer Group): a trigger button
+   styled like a <select>, opening a panel of checkboxes. Reuses the
+   acct-combo panel geometry so both dropdowns read as one control family. */
+.ms-combo{ position:relative; }
+.ms-trigger{
+  appearance:none; font:inherit; font-size:13px; font-weight:600; text-align:left;
+  color:var(--text);
+  background:var(--surface) url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6"><path d="M0 0l5 6 5-6z" fill="%23756B70"/></svg>') no-repeat right 12px center;
+  border:1px solid var(--border); border-radius:8px;
+  padding:9px 32px 9px 14px; min-width:170px; cursor:pointer; white-space:nowrap;
+  transition:border-color .15s ease;
+}
+.ms-trigger:hover{ border-color:var(--accent); }
+.ms-trigger.active{ border-color:var(--accent); color:var(--accent); }
+.ms-trigger:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+.ms-panel{
+  position:absolute; top:calc(100% + 4px); left:0; z-index:20;
+  background:var(--surface); border:1px solid var(--border); border-radius:8px;
+  box-shadow:var(--shadow); max-height:280px; overflow-y:auto; min-width:240px;
+}
+.ms-option{
+  display:flex; align-items:center; gap:8px; padding:8px 12px;
+  font-size:13px; cursor:pointer; white-space:nowrap;
+}
+.ms-option:hover, .ms-option.active{ background:var(--total-row-bg); }
+.ms-option input{ accent-color:var(--accent); margin:0; flex:none; }
+.ms-option.ms-all{ font-weight:700; border-bottom:1px solid var(--border); }
+label.acct-combo-option.ms-check-option{ display:flex; align-items:center; gap:8px; }
+label.acct-combo-option.ms-check-option input{ accent-color:var(--accent); margin:0; flex:none; }
+.acct-combo-option.ms-all{ font-weight:700; border-bottom:1px solid var(--border); }
+.acct-combo-panel.ms-panel-mode{ display:flex; flex-direction:column; overflow:hidden; padding:0; }
+.ms-clear-bar{ flex:none; display:flex; justify-content:flex-end; padding:6px 10px; border-bottom:1px solid var(--border); }
+.ms-clear-btn{
+  appearance:none; border:none; background:transparent; color:var(--accent);
+  font:inherit; font-size:12px; font-weight:700; cursor:pointer; padding:4px 8px; border-radius:6px;
+}
+.ms-clear-btn:hover:not(:disabled){ background:var(--total-row-bg); }
+.ms-clear-btn:disabled{ color:var(--text-dim); cursor:default; opacity:.6; }
+.ms-options-scroll{ overflow-y:auto; flex:1 1 auto; min-height:0; }
+
+/* Vendor/Customer Aging: the By Company / By Region row expands in place,
+   with its vendor/customer rows inserted directly underneath in the same
+   table (no separate view). */
+.aging-region-toggle{ display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:700; text-decoration:none; }
+.aging-region-toggle .aging-caret{ display:inline-block; width:10px; text-align:center; font-size:10px; color:var(--text-dim); }
+tr.aging-subrow td{ background-color:var(--surface-2); font-size:12px; color:var(--text-dim); }
+tr.aging-subrow td.col-left{ padding-left:34px; }
+tr.aging-subrow:hover td{ background-color:var(--total-row-bg); }
+.aging-subrow-entity{ opacity:.7; }
+
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-in">
+    <div class="brand"><img class="brand-logo" src="data:image/png;base64,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" alt="Huda Beauty"><span>Finance</span></div>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-meta" id="topbar-meta">Asia/Dubai</div>
+  </div>
+</div>
+
+<div class="wrap">
+  <header class="masthead">
+    <div class="masthead-in">
+      <div class="masthead-t">
+        <h1>GJV <em>Journal Register</em></h1>
+      </div>
+      <div class="masthead-d">
+        <p class="dek"><strong>Every general journal (GJV) across all legal entities, from 2026.</strong> Who created it, debit and credit, posting and transaction type, GL, customer and vendor accounts, straight from Dynamics 365 and refreshed four times a day.</p>
+      </div>
+    </div>
+  </header>
+</div>
+
+<nav class="view-tabs" id="view-tabs" role="tablist" aria-label="Report view">
+  <div class="view-tabs-in">
+    <button type="button" data-view="report" class="active" role="tab" aria-selected="true">Journals</button>
+    <!-- Shown only once /api/me says this account is an admin. Hidden in the markup
+         rather than added by script so that a reader with no JavaScript, or a page
+         whose /api/me call fails, never sees a tab that would refuse them. -->
+    <button type="button" data-view="access" id="tab-access" class="tab-admin" role="tab" aria-selected="false" hidden>User access</button>
+  </div>
+</nav>
+
+<div class="wrap">
+<!-- =========================================================================
+     GJV JOURNAL REGISTER - the report panel.
+     Reads the static snapshot in site/data (build/build_data.py). All filtering,
+     totals and the Excel export run in the browser; nothing here queries Databricks.
+     ========================================================================= -->
+<div class="view-panel" id="panel-report">
+<style>
+/* GJV Journal Register. Colours come from the Pulse Atlas theme (theme.css), which is
+   light only; these names are the report's own, mapped onto the atlas palette. */
+.gj { --panel: var(--surface); --fg: var(--text); --muted: var(--text2); --line: var(--border);
+  --accent: var(--pink); --ok: #15803d; --warn: #a86200; --bad: #c62828; --grid: var(--surface3);
+  --tip: var(--surface); --bg: var(--surface2); --font: inherit; --serif: var(--display); --r: 14px; }
+.gj .gj-kpi b { font-weight: 800; letter-spacing: -.02em; }
+.gj .gj-btn-primary { color: var(--on-pink); }
+.gj .gj-table th { background: var(--thead-bg); color: #fff; }
+.gj .gj-table td.gj-r, .gj .gj-table th.gj-r { text-align: right; }
+.gj .gj-table td { background: var(--surface); }
+.gj .gj-table tr.gj-click:hover td, .gj .gj-table tr.gj-sel td { background: var(--pink-dim); }
+.gj .gj-lede { margin: 0; max-width: 80ch; color: var(--text2); }
+.gj .gj-lede b { color: var(--text); }
+.gj { display: grid; gap: 24px; padding: 8px 0 32px; }
+.gj h1x { font-family: var(--serif); font-weight: 400; font-size: 32px; margin: 0; text-wrap: balance; }
+.gj h2 { font-size: 16px; font-weight: 600; margin: 0; }
+.gj-head { display: grid; gap: 8px; }
+.gj-eyebrow { margin: 0; font-size: 12px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+.gj-lede { margin: 0; max-width: 70ch; color: var(--muted); }
+.gj-lede b { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; }
+.gj-sub { margin: 0; color: var(--muted); font-size: 12px; font-weight: 400; max-width: 75ch; }
+.gj-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; align-items: end;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; }
+.gj-field { display: grid; gap: 4px; min-width: 0; }
+.gj-field label { font-size: 11px; color: var(--muted); letter-spacing: .05em; text-transform: uppercase; }
+.gj-field input, .gj-field select { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; width: 100%; min-width: 0; }
+.gj-field input.gj-bad { border-color: var(--bad); }
+.gj-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.gj-btn { font: inherit; font-size: 13px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 7px 12px; cursor: pointer; }
+.gj-btn:hover:not(:disabled) { border-color: var(--muted); }
+.gj-btn:disabled { opacity: .45; cursor: default; }
+.gj-btn:focus-visible, .gj-field input:focus-visible, .gj-field select:focus-visible, tr:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.gj-btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.gj-hint, .gj-xstatus { grid-column: 1 / -1; margin: 0; font-size: 12px; }
+.gj-hint { color: var(--bad); }
+.gj-xstatus { color: var(--muted); }
+.gj-xstatus:empty { display: none; }
+.gj-xstatus[data-tone="ok"] { color: var(--ok); }
+.gj-xstatus[data-tone="bad"] { color: var(--bad); }
+.gj-error { margin: 0; padding: 12px 16px; border: 1px solid var(--bad); color: var(--bad); border-radius: var(--r); background: var(--panel); }
+.gj-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.gj-kpi { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 4px; }
+.gj-kpi span { font-size: 12px; color: var(--muted); }
+.gj-kpi b { font-family: var(--serif); font-weight: 400; font-size: 30px; font-variant-numeric: tabular-nums; min-height: 1.2em; }
+.gj-kpi.gj-warn b { color: var(--warn); }
+.gj-mix { display: flex; flex-wrap: wrap; gap: 8px; margin: -12px 0 0; font-size: 12px; color: var(--muted); }
+.gj-mix span { border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; }
+.gj-mix b { color: var(--fg); font-variant-numeric: tabular-nums; }
+.gj-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.gj-card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 12px; min-width: 0; align-content: start; }
+.gj-chart { position: relative; min-height: 220px; }
+.gj-chart svg { display: block; overflow: visible; }
+.gj-chart .tick text, .gj-chart .gj-lbl { fill: var(--muted); font-size: 11px; }
+.gj-chart .gj-grid line { stroke: var(--grid); }
+.gj-chart .gj-grid .domain, .gj-chart .gj-axis path, .gj-chart .gj-axis line { stroke: var(--line); }
+.gj-chart .gj-val { fill: var(--fg); font-size: 11px; font-variant-numeric: tabular-nums; }
+.gj-chart rect.gj-bar { cursor: pointer; fill: var(--accent); }
+.gj-chart rect.gj-bar:hover { opacity: .8; }
+.gj-tip { position: absolute; pointer-events: none; background: var(--tip); border: 1px solid var(--line); box-shadow: 0 4px 16px rgba(0,0,0,.15);
+  border-radius: 6px; padding: 6px 9px; font-size: 12px; white-space: nowrap; z-index: 3; }
+.gj-tip small { display: block; color: var(--muted); }
+.gj-note { color: var(--muted); font-size: 12px; margin: 0; padding: 12px 0; }
+.gj-sechead { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; justify-content: space-between; }
+.gj-pager { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.gj-scroll { overflow: auto; max-height: 640px; border: 1px solid var(--line); border-radius: 6px; }
+.gj-table { border-collapse: collapse; width: 100%; font-size: 12px; font-variant-numeric: tabular-nums; }
+.gj-table th { position: sticky; top: 0; background: var(--panel); text-align: left; font-weight: 600; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; z-index: 1; }
+.gj-table td { padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; white-space: nowrap; }
+.gj-table td.gj-wrap { white-space: normal; min-width: 220px; max-width: 360px; }
+.gj-table .gj-r { text-align: right; }
+.gj-table tr.gj-click { cursor: pointer; }
+.gj-table tr.gj-click:hover td, .gj-table tr.gj-sel td { background: var(--bg); }
+.gj-table td.gj-msg { color: var(--muted); padding: 16px; white-space: normal; }
+.gj-pill { display: inline-block; border-radius: 999px; padding: 1px 8px; border: 1px solid currentColor; }
+.gj-pill.gj-ok { color: var(--ok); } .gj-pill.gj-open { color: var(--warn); }
+.gj-cr { color: var(--muted); }
+.gj-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.gj details { color: var(--muted); font-size: 12px; }
+.gj details summary { cursor: pointer; color: var(--fg); }
+.gj details ul { padding-left: 1.2em; max-width: 80ch; }
+
+
+</style>
+<main class="gj">
+  <p class="gj-lede" id="gj-takeaway">From <b data-k="first_date"></b> to <b data-k="last_date"></b>, <b data-k="creators"></b> people created <b data-k="journals"></b> GJV journals across <b data-k="entities"></b> legal entities, and <b data-k="open_journals"></b> of them are not posted yet.</p>
+
+  <form class="gj-filters" id="filters" aria-label="Filters">
+    <div class="gj-field"><label for="f-from">From</label><input type="date" id="f-from" min="2026-01-01" max="2099-12-31"></div>
+    <div class="gj-field"><label for="f-to">To</label><input type="date" id="f-to" min="2026-01-01" max="2099-12-31"></div>
+    <div class="gj-field"><label for="f-le">Legal entity</label>
+      <select id="f-le">
+        <option value="">All entities</option>
+        <option>HBUK</option><option>HBDM</option><option>HBDS</option><option>HBUS</option><option>HBFR</option>
+        <option>HBFZ</option><option>HBLL</option><option>HBIN</option><option>HBSG</option><option>HBCB</option>
+        <option>HBPN</option><option>HBAQ</option><option>HBBV</option><option>KYEC</option><option>HBIM</option>
+      </select></div>
+    <div class="gj-field"><label for="f-creator">Created by</label><select id="f-creator"><option value="">Everyone</option></select></div>
+    <div class="gj-field"><label for="f-status">Status</label>
+      <select id="f-status"><option value="">Posted and not posted</option><option value="posted">Posted</option><option value="open">Not posted</option></select></div>
+    <div class="gj-field"><label for="f-acctype">Account type</label>
+      <select id="f-acctype"><option value="-1">Any account type</option><option value="0">Ledger (GL)</option><option value="1">Customer</option>
+        <option value="2">Vendor</option><option value="6">Bank</option><option value="5">Fixed assets</option></select></div>
+    <div class="gj-field"><label for="f-acct">Account code</label><input type="text" id="f-acct" placeholder="e.g. 6790002 or V000177" autocomplete="off" spellcheck="false"></div>
+    <div class="gj-field"><label for="f-q">Search</label><input type="search" id="f-q" placeholder="Journal, voucher or text" autocomplete="off"></div>
+    <div class="gj-actions">
+      <button type="submit" class="gj-btn">Apply</button>
+      <button type="button" class="gj-btn" id="f-reset">Reset filters</button>
+      <button type="button" class="gj-btn gj-btn-primary" id="x-export">Export to Excel</button>
+    </div>
+    <p class="gj-hint" id="f-hint" hidden>Account codes take letters, digits, dot, dash and underscore. Search can't contain quotes or backslashes.</p>
+    <p class="gj-xstatus" id="x-status" aria-live="polite"></p>
+  </form>
+
+  <p class="gj-error" id="page-error" hidden></p>
+
+  <section class="gj-kpis" aria-label="Totals">
+    <div class="gj-kpi"><span>Journals</span><b data-k="journals"></b></div>
+    <div class="gj-kpi"><span>Vouchers</span><b data-k="vouchers"></b></div>
+    <div class="gj-kpi"><span>Journal lines</span><b data-k="lines"></b></div>
+    <div class="gj-kpi"><span>Created by (people)</span><b data-k="creators"></b></div>
+    <div class="gj-kpi"><span>Legal entities</span><b data-k="entities"></b></div>
+    <div class="gj-kpi gj-warn"><span>Not posted yet</span><b data-k="open_journals"></b></div>
+  </section>
+  <p class="gj-mix">
+    <span>Lines touching a customer: <b data-k="customer_lines"></b></span>
+    <span>Lines touching a vendor: <b data-k="vendor_lines"></b></span>
+    <span>Lines touching a bank: <b data-k="bank_lines"></b></span>
+  </p>
+
+  <section class="gj-two">
+    <div class="gj-card"><h2>Journals by month</h2><p class="gj-sub">GJV journals with at least one line dated in each month. Click a bar to filter to that month.</p><div class="gj-chart" id="chart-month"></div></div>
+    <div class="gj-card"><h2>Journals by legal entity</h2><p class="gj-sub">Click a bar to filter to that entity.</p><div class="gj-chart" id="chart-entity"></div></div>
+  </section>
+
+  <section class="gj-two">
+    <div class="gj-card"><h2>Who created them</h2><p class="gj-sub">D365 user on the journal header. Click a person to see only their journals.</p>
+      <div class="gj-scroll"><table class="gj-table"><thead><tr><th>Created by</th><th class="gj-r">Journals</th><th class="gj-r">Lines</th><th class="gj-r">Not posted</th><th>Legal entities</th><th>Latest line date</th></tr></thead><tbody id="t-creators"></tbody></table></div></div>
+    <div class="gj-card"><h2>Debit and credit by currency</h2><p class="gj-sub">Line amounts in transaction currency. Debit and credit differ where lines use an offset account, because the offset side is not a separate line.</p>
+      <div class="gj-scroll"><table class="gj-table"><thead><tr><th>Currency</th><th class="gj-r">Lines</th><th class="gj-r">Debit</th><th class="gj-r">Credit</th></tr></thead><tbody id="t-currency"></tbody></table></div></div>
+  </section>
+
+  <section class="gj-card" id="journals">
+    <div class="gj-sechead"><h2>Journal list</h2>
+      <div class="gj-pager"><span id="j-info"></span><button type="button" class="gj-btn" id="j-prev">Previous</button><button type="button" class="gj-btn" id="j-next">Next</button></div></div>
+    <p class="gj-sub">One row per journal, newest line date first. Totals count only the lines that match the filters. Click a journal to open its lines below.</p>
+    <div class="gj-scroll"><table class="gj-table"><thead><tr><th>Journal</th><th>Entity</th><th>Description</th><th>Created by</th><th>Status</th><th>Posted at</th><th>First line date</th><th>Last line date</th><th class="gj-r">Vouchers</th><th class="gj-r">Lines</th><th>Currencies</th><th class="gj-r">Debit</th><th class="gj-r">Credit</th></tr></thead><tbody id="t-journals"></tbody></table></div>
+  </section>
+
+  <section class="gj-card" id="lines">
+    <div class="gj-sechead"><h2>Journal lines <span class="gj-sub" id="l-title">matching the filters</span></h2>
+      <div class="gj-pager"><span id="l-info"></span><button type="button" class="gj-btn" id="l-clear" hidden>Show all matching lines</button><button type="button" class="gj-btn" id="l-prev">Previous</button><button type="button" class="gj-btn" id="l-next">Next</button></div></div>
+    <p class="gj-sub">Every detail of each line: account and offset account with GL, customer or vendor name, debit and credit, transaction type, posting type and who created the journal.</p>
+    <div class="gj-scroll"><table class="gj-table"><thead><tr>
+      <th>Date</th><th>Journal</th><th>Voucher</th><th>Entity</th><th class="gj-r">Line</th><th>Account type</th><th>Account</th><th>Main account</th><th>Account name</th>
+      <th>Offset type</th><th>Offset account</th><th>Offset main account</th><th>Offset name</th><th class="gj-r">Debit</th><th class="gj-r">Credit</th><th>Currency</th><th class="gj-r">Exch. rate</th>
+      <th>Transaction type</th><th>Posting type</th><th>Posting profile</th><th>Line text</th><th>Invoice</th><th>Document</th><th>Created by</th><th>Status</th><th>Journal description</th>
+    </tr></thead><tbody id="t-lines"></tbody></table></div>
+  </section>
+
+  <details>
+    <summary>How these numbers are worked out</summary>
+    <ul>
+      <li>Source: D365 Finance tables in Databricks (ledger journal header and lines), journal name GJV, all legal entities. Only lines dated 1 January 2026 or later are included, whatever the From date says.</li>
+      <li>Dates are the line transaction date. D365 does not fill the journal header's created date in this data, so the journal is placed by its line dates.</li>
+      <li>Created by is the D365 user on the journal header.</li>
+      <li>Posting type comes from the posted general ledger entry for the same voucher and account. Customer, vendor and bank lines show the balance posting type D365 uses for them. Journals not yet posted show "Not posted".</li>
+      <li>Account names: GL accounts use the main account name, customers and vendors use their party name in the line's company.</li>
+      <li>Amounts are in each line's transaction currency, so totals are only added within one currency.</li>
+      <li>Export to Excel saves Summary, Journals and Lines sheets with every journal and line that matches the filters.</li>
+      <li>The figures are a snapshot taken by the scheduled refresh (the time is at the top of the page), not a live query. Each refresh checks every month and legal entity against totals Databricks computes separately and is not published if they disagree.</li>
+      <li>Only people on the access list can open this report.</li>
+    </ul>
+  </details>
+</main>
+</div>
+
+<!-- =========================================================================
+     USER ACCESS - who may open the GJV Journal Register.
+
+     A second tab beside Journals,
+     shown only to an admin. It is a separate source file, and its script is a
+     separate closure from the report's, for the reason the whole page is
+     assembled rather than edited: src/report.html is the report exactly as it
+     arrived and its logic is not ours to touch. Nothing below reaches into it,
+     and it reaches into nothing below.
+
+     The tab hides itself from everybody who is not an admin, but that is
+     presentation only: /api/users refuses every method below admin on the
+     server, and refuses it the same way whether the call came from this page
+     or from curl with a stolen session.
+
+     There is no Save button. Access is not the kind of thing to leave sitting
+     unsaved in a dialog, so every change goes to the server the moment it is
+     made, and every write re-reads the list afterwards rather than patching
+     the local copy - so what is on screen is what the file says, including a
+     change another admin made a moment ago and including a refusal this page
+     did not predict.
+     ========================================================================= -->
+<div class="view-panel" id="panel-access" hidden>
+  <main>
+    <div id="access-host">
+      <div class="empty-state">
+        <p class="display">Loading</p>
+        <p>Reading the access list&hellip;</p>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* Shared with 403.html on purpose. That page sets this key when it repairs a
+     session older than the access list; clearing it here, on a page that loaded,
+     means the next genuine denial in this tab can be repaired too. Without the
+     clear, one repair per tab would be one repair per tab forever. */
+  var REAUTH_KEY = 'hb-gjv-reauth';
+  try { sessionStorage.removeItem(REAUTH_KEY); } catch (e) { /* private window */ }
+
+  var host = document.getElementById('access-host');
+  var panel = document.getElementById('panel-access');
+  var tabBtn = document.getElementById('tab-access');
+  var viewTabs = document.getElementById('view-tabs');
+
+  /* What /api/me said about the person reading this. null until it answers. */
+  var ME = null;
+
+  /* null means "not fetched yet", which draws as loading rather than as an empty
+     list. An empty access list and an unread one look identical on screen
+     otherwise, and one of them is alarming. */
+  var users = null;
+  var loadError = '';
+  /* False when the server cannot write the list back: no GitHub token installed,
+     or GitHub unreachable. Reading still works from the copy in the deployed
+     bundle, so the tab shows who has access and says plainly that it cannot
+     change it, rather than looking like the access list itself has broken. */
+  var writable = true;
+  var readOnlyNote = '';
+  var busy = '';
+  var note = '';
+  var noteErr = false;
+  /* What is typed into the add form. Kept here because every write redraws the
+     whole tab, and a redraw after a failed add must not throw away what was
+     being typed. */
+  var draft = { email: '', name: '', admin: false };
+
+  function esc(s){
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function $(sel, root){ return (root || document).querySelector(sel); }
+  function $$(sel, root){
+    return Array.prototype.slice.call((root || document).querySelectorAll(sel));
+  }
+
+  // ======================================================================
+  // Talking to /api/users
+  // ======================================================================
+
+  function fetchUsers(){
+    return fetch('/api/users', {credentials:'same-origin', cache:'no-store'})
+      .then(function(r){
+        return r.json().then(function(b){
+          if (!r.ok) throw new Error(b && b.error ? b.error : 'HTTP ' + r.status);
+          return b;
+        });
+      })
+      .then(function(b){
+        users = b.users || [];
+        writable = b.writable !== false;
+        readOnlyNote = b.notice || '';
+        loadError = '';
+      })
+      .catch(function(err){ users = []; loadError = err.message; });
+  }
+
+  function send(url, method, body){
+    var init = {method: method, credentials: 'same-origin'};
+    if (body){
+      init.headers = {'Content-Type': 'application/json'};
+      init.body = JSON.stringify(body);
+    }
+    return fetch(url, init);
+  }
+
+  /* Every write re-reads. A refusal leaves the file untouched, and the page should
+     show that rather than the change it hoped for, so the re-read happens on both
+     paths. */
+  function write(promise, busyText){
+    busy = busyText || 'Saving…';
+    note = ''; noteErr = false;
+    render();
+    return promise
+      .then(function(r){
+        if (r.status === 204) return null;
+        return r.json().then(function(b){
+          if (!r.ok) throw new Error(b && b.error ? b.error : 'HTTP ' + r.status);
+          return b;
+        });
+      })
+      .then(function(){ return fetchUsers().then(function(){ busy = ''; }); })
+      .catch(function(err){
+        return fetchUsers().then(function(){
+          busy = '';
+          note = err.message;
+          noteErr = true;
+        });
+      })
+      .then(render);
+  }
+
+  /* Is this row the person reading the page? Compared case-insensitively, because
+     Azure returns whatever casing the directory holds. */
+  function isMe(u){
+    var mine = (ME && ME.email ? String(ME.email) : '').trim().toLowerCase();
+    return !!mine && mine === String(u.email || '').trim().toLowerCase();
+  }
+
+  // ======================================================================
+  // Drawing
+  // ======================================================================
+
+  function render(){
+    if (!ME || !ME.admin){
+      host.innerHTML = '<div class="empty-state"><p class="display">Not available</p>'
+        + '<p>Managing access needs the admin role.</p></div>';
+      return;
+    }
+    if (users === null){
+      host.innerHTML = '<div class="empty-state"><p class="display">Loading</p>'
+        + '<p>Reading the access list&hellip;</p></div>';
+      return;
+    }
+
+    var admins = users.filter(function(u){ return u.active && u.role === 'admin'; }).length;
+    var rows = users.slice().sort(function(a, b){
+      return String(a.name || a.email).localeCompare(String(b.name || b.email));
+    });
+
+    host.innerHTML =
+      '<section class="ac-sec">'
+      + '<div class="ac-head"><h2>People with access</h2>'
+      + '<span class="ac-count">' + rows.length + ' '
+      + (rows.length === 1 ? 'person' : 'people') + '</span></div>'
+      + '<p class="ac-lead">Microsoft still handles the sign-in itself. This list decides '
+      + 'who is let through afterwards. Everybody on it reads the whole report, every legal '
+      + 'entity\'s GJV journals; an admin can also change this list. Anybody not on it is signed '
+      + 'in, refused, and told so. Changes save the moment you make them.</p>'
+      + (loadError
+          ? '<div class="ac-err"><b>The access list could not be loaded.</b> '
+            + esc(loadError) + '</div>'
+          : '')
+      + (writable
+          ? ''
+          : '<div class="ac-err"><b>Read only.</b> ' + esc(readOnlyNote) + '</div>')
+      + '<div class="ac-tblwrap"><table class="ac-tbl"><thead><tr>'
+      + '<th scope="col" class="ac-cperson">Person</th>'
+      + '<th scope="col">Manage access</th>'
+      + '<th scope="col">Active</th>'
+      + '<th scope="col"></th>'
+      + '</tr></thead><tbody>'
+      + (rows.length ? rows.map(userRow(admins)).join('')
+          : '<tr><td colspan="4" class="ac-dim">Nobody is listed yet.</td></tr>')
+      + '</tbody></table></div>'
+      + (ME.breakGlass
+          ? '<p class="ac-lead ac-bg">You are a permanent admin, set in the code rather '
+            + 'than in this list, so you cannot be locked out of this page even by a '
+            + 'change made here.</p>'
+          : '')
+      + '</section>'
+      + (writable ? addForm() : '');
+
+    wire();
+  }
+
+  function userRow(admins){
+    return function(u){
+      var isAdmin = u.role === 'admin';
+      var me = isMe(u);
+      /* The last active admin is the one record that cannot be touched. The server
+         refuses it too; this stops somebody reaching for it in the first place. */
+      var lastAdmin = u.active && isAdmin && admins <= 1;
+      var locked = lastAdmin || !writable;
+      var added = u.addedAt ? String(u.addedAt).slice(0, 10) : '';
+
+      return '<tr' + (me ? ' class="ac-me"' : '') + '>'
+        + '<td class="ac-cperson"><b>' + esc(u.name || u.email.split('@')[0]) + '</b>'
+          + (me ? ' <span class="ac-you">you</span>' : '')
+          + '<br><span class="ac-mail">' + esc(u.email) + '</span>'
+          + (added ? '<span class="ac-when">added ' + esc(added)
+              + (u.addedBy ? ' by ' + esc(u.addedBy) : '') + '</span>' : '')
+          + '</td>'
+        /* Two separate questions, two separate controls. Spend Prism first shipped
+           this as one dropdown that changed privilege as a side effect of changing
+           scope, and it silently demoted the person who clicked it. */
+        + '<td><label class="ac-sw"><input type="checkbox" data-uadmin="' + esc(u.email) + '"'
+          + (isAdmin ? ' checked' : '') + (locked ? ' disabled' : '') + '> '
+          + '<span>' + (isAdmin ? 'Admin' : 'No') + '</span></label></td>'
+        + '<td><label class="ac-sw"><input type="checkbox" data-uactive="' + esc(u.email) + '"'
+          + (u.active ? ' checked' : '') + (locked ? ' disabled' : '') + '> '
+          + '<span>' + (u.active ? 'On' : 'Off') + '</span></label></td>'
+        + '<td class="ac-act">'
+          + (lastAdmin
+              ? '<span class="ac-dim" title="Make somebody else an admin first">Last admin</span>'
+              : (writable
+                  ? '<button type="button" class="ac-lnk ac-danger" data-uremove="'
+                    + esc(u.email) + '">Remove</button>'
+                  : '<span class="ac-dim">Read only</span>'))
+          + '</td>'
+        + '</tr>';
+    };
+  }
+
+  function addForm(){
+    return '<section class="ac-sec">'
+      + '<div class="ac-head"><h2>Give somebody access</h2></div>'
+      + '<div class="ac-add">'
+      + '<label class="ac-f"><span>Email</span>'
+        + '<input type="text" id="acEmail" placeholder="name@hudabeauty.com" '
+        + 'autocomplete="off" value="' + esc(draft.email) + '"></label>'
+      + '<label class="ac-f"><span>Name <i>(optional)</i></span>'
+        + '<input type="text" id="acName" placeholder="e.g. Rohit Jain" '
+        + 'autocomplete="off" value="' + esc(draft.name) + '"></label>'
+      + '<label class="ac-f"><span>Manage access</span>'
+        + '<label class="ac-sw ac-swf"><input type="checkbox" id="acAdmin"'
+        + (draft.admin ? ' checked' : '') + '> '
+        + '<span>Admin, can change this list</span></label></label>'
+      + '</div>'
+      + '<div class="ac-actions">'
+        + '<button class="ac-btn" type="button" id="acAdd">Add person</button>'
+        + '<span class="ac-status' + (noteErr ? ' err' : '') + '">'
+        + esc(busy || note) + '</span>'
+      + '</div>'
+      + '</section>';
+  }
+
+  // ======================================================================
+  // Wiring. Re-run after every redraw, because the redraw replaces the nodes.
+  // ======================================================================
+
+  function wire(){
+    $$('[data-uadmin]').forEach(function(box){
+      box.addEventListener('change', function(){
+        var email = box.dataset.uadmin;
+        var u = users.filter(function(x){ return x.email === email; })[0];
+        var makeAdmin = box.checked;
+
+        /* Taking admin off YOUR OWN row is the one change you cannot undo: the page
+           you would undo it from is the page you just lost. So it is spelled out and
+           confirmed, and the checkbox is put back if the answer is no. */
+        if (!makeAdmin && isMe(u)){
+          var ok = window.confirm(
+            'Remove your own admin?\n\n'
+            + 'You would keep reading the journal register, but this User access tab '
+            + 'would disappear and you could not put your own admin back. Another '
+            + 'admin would have to do it for you.'
+            + (ME.breakGlass
+                ? '\n\nYou are also a permanent admin set in the code, so in your case '
+                  + 'this tab would stay available.'
+                : ''));
+          if (!ok){ box.checked = true; return; }
+        }
+
+        write(send('/api/users/' + encodeURIComponent(email), 'PATCH',
+          {role: makeAdmin ? 'admin' : 'viewer'}),
+          makeAdmin ? 'Making ' + email + ' an admin…'
+                    : 'Removing admin from ' + email + '…');
+      });
+    });
+
+    $$('[data-uactive]').forEach(function(box){
+      box.addEventListener('change', function(){
+        var email = box.dataset.uactive;
+        write(send('/api/users/' + encodeURIComponent(email), 'PATCH',
+          {active: box.checked}),
+          (box.checked ? 'Switching on ' : 'Switching off ') + email + '…');
+      });
+    });
+
+    $$('[data-uremove]').forEach(function(b){
+      b.addEventListener('click', function(){
+        var email = b.dataset.uremove;
+        if (!window.confirm('Remove ' + email + '?\n\nThey lose access to the trial '
+            + 'balance the next time they load it.')) return;
+        write(send('/api/users/' + encodeURIComponent(email), 'DELETE'),
+          'Removing ' + email + '…');
+      });
+    });
+
+    var em = $('#acEmail'), nm = $('#acName'), ad = $('#acAdmin');
+    if (em) em.addEventListener('input', function(){ draft.email = em.value; });
+    if (nm) nm.addEventListener('input', function(){ draft.name = nm.value; });
+    if (ad) ad.addEventListener('change', function(){ draft.admin = ad.checked; });
+    if (em) em.addEventListener('keydown', function(e){
+      if (e.key === 'Enter') { e.preventDefault(); addPerson(); }
+    });
+
+    var btn = $('#acAdd');
+    if (btn) btn.addEventListener('click', addPerson);
+  }
+
+  function addPerson(){
+    var email = (draft.email || '').trim();
+    if (!email || email.indexOf('@') <= 0 || email.charAt(email.length - 1) === '@'){
+      note = 'Enter a valid email address.'; noteErr = true; render(); return;
+    }
+    var body = {
+      email: email,
+      name: (draft.name || '').trim(),
+      role: draft.admin ? 'admin' : 'viewer'
+    };
+    write(send('/api/users', 'POST', body).then(function(r){
+      if (r.ok){ draft.email = ''; draft.name = ''; draft.admin = false; }
+      return r;
+    }), 'Giving ' + email + ' access…');
+  }
+
+  // ======================================================================
+  // The tab itself
+  //
+  // The report's own tab handler hides its four panels whenever any tab is
+  // clicked, including this one, so all this has to do is show and hide its own
+  // panel. Deliberately a second listener on the same nav rather than an edit to
+  // the report's handler: src/report.html is the report as it arrived.
+  // ======================================================================
+
+  if (viewTabs){
+    viewTabs.addEventListener('click', function(e){
+      var btn = e.target.closest('button[data-view]');
+      if (!btn) return;
+      var mine = btn.getAttribute('data-view') === 'access';
+      panel.hidden = !mine;
+      if (mine && users === null && ME && ME.admin){
+        fetchUsers().then(render);
+      }
+    });
+  }
+
+  /* /api/me is the live answer, read from the access list on this request rather
+     than out of the session cookie, so the tab appears for somebody promoted a
+     minute ago and is gone for somebody demoted a minute ago, with no sign-out in
+     between. A failure leaves the tab hidden, which is the safe way round. */
+  fetch('/api/me', {credentials:'same-origin', cache:'no-store'})
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(me){
+      ME = me || {};
+      if (!ME.admin) return;
+      if (tabBtn) tabBtn.hidden = false;
+    })
+    .catch(function(){ /* no tab, and the report is unaffected */ });
+})();
+</script>
+
+</div>
+
+<footer class="pagefoot">
+  <div class="wrap">
+    <p><strong>GJV Journal Register</strong> &middot; a Pulse business app, built and run by AI and Automation.</p>
+    <p>Source: <code>hb_catalog.db_bronze_d365</code> in Databricks, read from the Dynamics 365 ledger journal header and lines. Journal name GJV, every legal entity, lines dated 1 January 2026 or later.</p>
+    <p class="foot-mono" id="foot-stamp">&nbsp;</p>
+  </div>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script>
+// Minimal .xlsx writer: Office Open XML sheets in an uncompressed zip.
+window.gjXlsx = (function () {
+  const enc = new TextEncoder();
+  const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  function crc32(u8) { let c = 0xffffffff; for (let i = 0; i < u8.length; i++) c = CRC[(c ^ u8[i]) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; }
+  function zip(files) {
+    const parts = [], central = []; let offset = 0;
+    const now = new Date();
+    const dtime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+    const ddate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+    files.forEach((f) => {
+      const name = enc.encode(f.name), data = typeof f.data === 'string' ? enc.encode(f.data) : f.data, crc = crc32(data);
+      const h = new DataView(new ArrayBuffer(30));
+      h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true);
+      h.setUint16(10, dtime, true); h.setUint16(12, ddate, true); h.setUint32(14, crc, true);
+      h.setUint32(18, data.length, true); h.setUint32(22, data.length, true); h.setUint16(26, name.length, true); h.setUint16(28, 0, true);
+      parts.push(h.buffer, name, data);
+      const c = new DataView(new ArrayBuffer(46));
+      c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint16(10, 0, true);
+      c.setUint16(12, dtime, true); c.setUint16(14, ddate, true); c.setUint32(16, crc, true); c.setUint32(20, data.length, true); c.setUint32(24, data.length, true);
+      c.setUint16(28, name.length, true); c.setUint32(42, offset, true);
+      central.push(c.buffer, name);
+      offset += 30 + name.length + data.length;
+    });
+    const csize = central.reduce((s, p) => s + p.byteLength, 0);
+    const e = new DataView(new ArrayBuffer(22));
+    e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true);
+    e.setUint32(12, csize, true); e.setUint32(16, offset, true);
+    return new Blob([...parts, ...central, e.buffer]);
+  }
+  const esc = (s) => String(s).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f￾￿]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  function colName(i) { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
+  const EPOCH = Date.UTC(1899, 11, 30);
+  function serial(v) { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v)); return m ? (Date.UTC(+m[1], +m[2] - 1, +m[3]) - EPOCH) / 86400000 : null; }
+  // cols: [{label, key, type: 'text'|'int'|'money'|'num'|'date', width}]
+  function sheetXml(cols, rows) {
+    const out = [];
+    const last = colName(cols.length - 1);
+    out.push('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">');
+    out.push('<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>');
+    out.push('<cols>' + cols.map((c, i) => `<col min="${i + 1}" max="${i + 1}" width="${c.width || 14}" customWidth="1"/>`).join('') + '</cols><sheetData>');
+    out.push('<row r="1">' + cols.map((c, i) => `<c r="${colName(i)}1" t="inlineStr" s="1"><is><t>${esc(c.label)}</t></is></c>`).join('') + '</row>');
+    rows.forEach((r, ri) => {
+      const rn = ri + 2; let x = `<row r="${rn}">`;
+      cols.forEach((c, i) => {
+        const v = r[c.key]; if (v == null || v === '') return;
+        const ref = colName(i) + rn;
+        if (c.type === 'date') { const d = serial(v); x += d == null ? `<c r="${ref}" t="inlineStr"><is><t>${esc(v)}</t></is></c>` : `<c r="${ref}" s="2"><v>${d}</v></c>`; }
+        else if (c.type === 'money' || c.type === 'int' || c.type === 'num') { const n = +v; x += isFinite(n) ? `<c r="${ref}" s="${c.type === 'money' ? 3 : c.type === 'int' ? 4 : 0}"><v>${n}</v></c>` : `<c r="${ref}" t="inlineStr"><is><t>${esc(v)}</t></is></c>`; }
+        else x += `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${esc(v)}</t></is></c>`;
+      });
+      out.push(x + '</row>');
+    });
+    out.push('</sheetData>');
+    if (rows.length) out.push(`<autoFilter ref="A1:${last}${rows.length + 1}"/>`);
+    out.push('</worksheet>');
+    return out.join('');
+  }
+  function workbook(sheets) {
+    const files = [];
+    files.push({ name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' + sheets.map((s, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('') + '</Types>' });
+    files.push({ name: '_rels/.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' });
+    files.push({ name: 'xl/workbook.xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' + sheets.map((s, i) => `<sheet name="${esc(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('') + '</sheets>' + (function () { const d = sheets.map((s, i) => s.rows.length ? `<definedName name="_xlnm._FilterDatabase" localSheetId="${i}" hidden="1">'${esc(s.name)}'!$A$1:$${colName(s.cols.length - 1)}$${s.rows.length + 1}</definedName>` : '').join(''); return d ? '<definedNames>' + d + '</definedNames>' : ''; })() + '</workbook>' });
+    files.push({ name: 'xl/_rels/workbook.xml.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + sheets.map((s, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('') + `<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>` });
+    files.push({ name: 'xl/styles.xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="dd mmm yyyy"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE7EAF0"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="4" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="3" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>' });
+    sheets.forEach((s, i) => files.push({ name: `xl/worksheets/sheet${i + 1}.xml`, data: sheetXml(s.cols, s.rows) }));
+    return zip(files);
+  }
+  return { workbook };
+})();
+
+// ---------- data: static snapshot files written by build/build_data.py
+window.gjData = (function () {
+  'use strict';
+  let meta = null, jindex = null, ready = null;
+  const months = new Map();
+  let lastKey = null, lastRows = null;
+
+  async function getJSON(url) {
+    const r = await fetch(url, { credentials: 'same-origin', cache: 'no-cache' });
+    if (r.status === 401 || r.status === 403) throw new Error('Your sign-in has expired. Reload the page to sign in again.');
+    if (!r.ok) throw new Error('Could not load ' + url + ' (' + r.status + ').');
+    return r.json();
+  }
+  function init() {
+    if (!ready) ready = Promise.all([getJSON('data/meta.json'), getJSON('data/journals.json')]).then(([m, j]) => {
+      meta = m; jindex = new Map();
+      const fi = Object.fromEntries(j.fields.map((f, i) => [f, i]));
+      j.rows.forEach((r) => jindex.set(r[fi.le] + '|' + r[fi.journalnum], {
+        description: r[fi.description], createdby: r[fi.createdby], posted: r[fi.posted] === 1, posted_at: r[fi.posted_at] }));
+    });
+    return ready;
+  }
+  function loadMonth(key) {
+    if (!months.has(key)) {
+      months.set(key, getJSON('data/lines/' + key + '.json').then((d) => {
+        const F = d.fields, S = d.strings, NUM = new Set(['line', 'acctype', 'offtype', 'debit', 'credit', 'exch_rate']);
+        return d.rows.map((r) => {
+          const o = {};
+          F.forEach((f, i) => { o[f] = NUM.has(f) ? r[i] : S[r[i]]; });
+          const h = jindex.get(o.le + '|' + o.journalnum) || {};
+          o.createdby = h.createdby || ''; o.jdesc = h.description || ''; o.posted = !!h.posted; o.posted_at = h.posted_at || '';
+          o.debit = o.debit || 0; o.credit = o.credit || 0;
+          return o;
+        });
+      }).catch((e) => { months.delete(key); throw e; }));
+    }
+    return months.get(key);
+  }
+  const head = (s) => String(s || '').split('-')[0].toUpperCase();
+
+  async function filtered(f) {
+    await init();
+    const from = f.from > meta.source.firstDate ? f.from : meta.source.firstDate, to = f.to;
+    const key = JSON.stringify([from, to, f.le, f.creator, f.status, f.acctype, f.acct, f.q]);
+    if (key === lastKey) return lastRows;
+    const wanted = meta.months.map((m) => m.key).filter((k) => k >= from.slice(0, 7) && k <= to.slice(0, 7));
+    const all = (await Promise.all(wanted.map(loadMonth))).flat();
+    const at = Number(f.acctype), acct = (f.acct || '').toUpperCase(), q = (f.q || '').toLowerCase();
+    const rows = all.filter((r) => r.transdate >= from && r.transdate <= to
+      && (!f.le || r.le === f.le)
+      && (!f.creator || r.createdby === f.creator)
+      && (!f.status || (f.status === 'posted' ? r.posted : !r.posted))
+      && (at < 0 || r.acctype === at || r.offtype === at)
+      && (!acct || head(r.account) === acct || head(r.offset_account) === acct)
+      && (!q || (r.journalnum + ' ' + r.voucher + ' ' + r.jdesc + ' ' + r.description).toLowerCase().includes(q)));
+    lastKey = key; lastRows = rows;
+    return rows;
+  }
+  const uniq = (arr) => new Set(arr).size;
+  const cmpDesc = (a, b) => (a < b ? 1 : a > b ? -1 : 0);
+
+  function journalsOf(rows) {
+    const g = new Map();
+    rows.forEach((r) => {
+      const k = r.le + '|' + r.journalnum;
+      let j = g.get(k);
+      if (!j) g.set(k, j = { le: r.le, journalnum: r.journalnum, description: r.jdesc, createdby: r.createdby,
+        status: r.posted ? 'Posted' : 'Not posted', posted_at: r.posted ? r.posted_at : '', first_date: r.transdate, last_date: r.transdate,
+        _v: new Set(), lines: 0, _c: new Set(), debit: 0, credit: 0 });
+      if (r.transdate < j.first_date) j.first_date = r.transdate;
+      if (r.transdate > j.last_date) j.last_date = r.transdate;
+      j._v.add(r.voucher); j._c.add(r.currency); j.lines += 1; j.debit += r.debit; j.credit += r.credit;
+    });
+    return [...g.values()].map((j) => ({ ...j, vouchers: j._v.size, currencies: [...j._c].sort().join(', '), _v: undefined, _c: undefined }))
+      .sort((a, b) => cmpDesc(a.last_date, b.last_date) || cmpDesc(a.journalnum, b.journalnum) || (a.le < b.le ? -1 : 1));
+  }
+  const TYPES = () => meta.accountTypes;
+
+  async function query(path, f) {
+    const rows = await filtered(f);
+    const page = Number(f.page || 0), size = Number(f.size || (path === 'lines' ? 300 : 100));
+    switch (path) {
+      case 'summary': {
+        if (!rows.length) return { journals: 0, vouchers: 0, lines: 0, creators: 0, entities: 0, posted_journals: 0, open_journals: 0, customer_lines: 0, vendor_lines: 0, bank_lines: 0, first_date: null, last_date: null };
+        const js = new Map(); rows.forEach((r) => js.set(r.le + '|' + r.journalnum, r.posted));
+        let first = rows[0].transdate, last = first;
+        rows.forEach((r) => { if (r.transdate < first) first = r.transdate; if (r.transdate > last) last = r.transdate; });
+        const has = (r, t) => r.acctype === t || r.offtype === t;
+        return { journals: js.size, vouchers: uniq(rows.map((r) => r.le + '|' + r.voucher)), lines: rows.length,
+          creators: uniq(rows.map((r) => r.createdby)), entities: uniq(rows.map((r) => r.le)),
+          posted_journals: [...js.values()].filter(Boolean).length, open_journals: [...js.values()].filter((p) => !p).length,
+          customer_lines: rows.filter((r) => has(r, 1)).length, vendor_lines: rows.filter((r) => has(r, 2)).length, bank_lines: rows.filter((r) => has(r, 6)).length,
+          first_date: first, last_date: last };
+      }
+      case 'by-month': {
+        const g = new Map();
+        rows.forEach((r) => { const k = r.transdate.slice(0, 7); const m = g.get(k) || { month: k, _j: new Set(), lines: 0 }; m._j.add(r.le + '|' + r.journalnum); m.lines += 1; g.set(k, m); });
+        return [...g.values()].sort((a, b) => (a.month < b.month ? -1 : 1)).map((m) => ({ month: m.month, journals: m._j.size, lines: m.lines }));
+      }
+      case 'by-entity': {
+        const g = new Map();
+        rows.forEach((r) => { const e = g.get(r.le) || { le: r.le, _j: new Set(), lines: 0, _c: new Set(), _o: new Set() }; e._j.add(r.journalnum); e.lines += 1; e._c.add(r.createdby); if (!r.posted) e._o.add(r.journalnum); g.set(r.le, e); });
+        return [...g.values()].map((e) => ({ le: e.le, journals: e._j.size, lines: e.lines, creators: e._c.size, open_journals: e._o.size })).sort((a, b) => b.journals - a.journals);
+      }
+      case 'by-creator': {
+        const g = new Map();
+        rows.forEach((r) => { const k = r.createdby || '(blank)'; const c = g.get(k) || { createdby: k, _j: new Set(), lines: 0, _e: new Set(), _o: new Set(), last_date: '' }; const jk = r.le + '|' + r.journalnum; c._j.add(jk); c.lines += 1; c._e.add(r.le); if (!r.posted) c._o.add(jk); if (r.transdate > c.last_date) c.last_date = r.transdate; g.set(k, c); });
+        return [...g.values()].map((c) => ({ createdby: c.createdby, journals: c._j.size, lines: c.lines, entities: [...c._e].sort().join(', '), open_journals: c._o.size, last_date: c.last_date })).sort((a, b) => b.journals - a.journals);
+      }
+      case 'by-currency': {
+        const g = new Map();
+        rows.forEach((r) => { const c = g.get(r.currency) || { cur: r.currency, lines: 0, debit: 0, credit: 0 }; c.lines += 1; c.debit += r.debit; c.credit += r.credit; g.set(r.currency, c); });
+        return [...g.values()].sort((a, b) => b.lines - a.lines);
+      }
+      case 'creators': await init(); return meta.creators.slice();
+      case 'journals': { const all = journalsOf(rows); return { rows: all.slice(page * size, page * size + size), total: all.length, page, page_size: size }; }
+      case 'lines': {
+        const t = TYPES();
+        const sel = (f.journal ? rows.filter((r) => r.journalnum === f.journal) : rows.slice())
+          .sort((a, b) => cmpDesc(a.transdate, b.transdate) || cmpDesc(a.journalnum, b.journalnum) || (a.line || 0) - (b.line || 0) || (a.recid < b.recid ? -1 : 1));
+        return { page, page_size: size, rows: sel.slice(page * size, page * size + size).map((r) => ({
+          recid: r.recid, le: r.le, journalnum: r.journalnum, voucher: r.voucher, transdate: r.transdate, line: r.line,
+          account_type: t[r.acctype] || '', account: r.account, account_name: r.account_name, gl_account: r.gl_account,
+          offset_type: r.offtype == null ? '' : (t[r.offtype] || ''), offset_account: r.offset_account, offset_name: r.offset_name, offset_gl: r.offset_gl,
+          debit: r.debit, credit: r.credit, currency: r.currency, exch_rate: r.exch_rate, transaction_type: r.transaction_type,
+          posting_type: r.posting_type, posting_profile: r.posting_profile, description: r.description, invoice: r.invoice, document: r.document,
+          created_by: r.createdby, journal_description: r.jdesc, status: r.posted ? 'Posted' : 'Not posted' })) };
+      }
+      default: throw new Error('Unknown view ' + path);
+    }
+  }
+  return { query, init, meta: () => meta };
+})();
+// GJV Journal Register frontend: reads filters, calls /api, draws KPIs, charts and tables.
+(function () {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const fmtInt = d3.format(',d'), fmtMoney = d3.format(',.2f'), fmtRate = d3.format(',.4~f');
+  const parseDay = d3.utcParse('%Y-%m-%d'), parseMonth = d3.utcParse('%Y-%m');
+  const fmtDate = (s) => { if (!s) return ''; const d = parseDay(String(s).slice(0, 10)); return d ? d3.utcFormat('%d %b %Y')(d) : String(s); };
+  const today = d3.timeFormat('%Y-%m-%d')(new Date());
+  const DEFAULTS = { from: '2026-01-01', to: today, le: '', creator: '', status: '', acctype: -1, acct: '', q: '' };
+  const ACCT = /^[A-Za-z0-9_.-]{0,30}$/, Q = /^[\p{L}\p{N} ._/&#:,()-]{0,60}$/u;
+
+  let filters = { ...DEFAULTS };
+  let jpage = 0, lpage = 0, journal = '';
+  let seq = 0;
+  let lastMonth = null, lastEntity = null;
+
+  const qs = (extra) => new URLSearchParams({ ...filters, ...(extra || {}) }).toString();
+  async function api(path, extra) {
+    return window.gjData.query(path, { ...filters, ...(extra || {}) });
+  }
+
+  // ---------- helpers
+  function td(tr, text, cls) { const c = document.createElement('td'); c.textContent = text == null ? '' : String(text); if (cls) c.className = cls; tr.appendChild(c); return c; }
+  function msgRow(tbody, cols, text) { const tr = document.createElement('tr'); const c = td(tr, text, 'gj-msg'); c.colSpan = cols; tbody.replaceChildren(tr); }
+  function pill(cell, text) { const s = document.createElement('span'); s.className = 'gj-pill ' + (text === 'Posted' ? 'gj-ok' : 'gj-open'); s.textContent = text; cell.replaceChildren(s); }
+  function note(el, text) { const p = document.createElement('p'); p.className = 'gj-note'; p.textContent = text; el.replaceChildren(p); }
+  function tipFor(el) { const t = document.createElement('div'); t.className = 'gj-tip'; t.hidden = true; el.appendChild(t); return t; }
+  function showTip(el, tip, ev, title, sub) {
+    const b = document.createElement('b'); b.textContent = title; const s = document.createElement('small'); s.textContent = sub;
+    tip.replaceChildren(b, s); tip.hidden = false;
+    const r = el.getBoundingClientRect(); let x = ev.clientX - r.left + 12, y = ev.clientY - r.top - tip.offsetHeight - 8;
+    if (x + tip.offsetWidth > r.width) x = Math.max(0, ev.clientX - r.left - tip.offsetWidth - 12);
+    if (y < 0) y = ev.clientY - r.top + 14;
+    tip.style.left = x + 'px'; tip.style.top = y + 'px';
+  }
+  function setFilters(patch) { filters = { ...filters, ...patch }; jpage = 0; lpage = 0; journal = ''; syncControls(); loadAll(); }
+
+  // ---------- controls
+  function syncControls() {
+    const v = { 'f-from': filters.from, 'f-to': filters.to, 'f-le': filters.le, 'f-status': filters.status, 'f-acctype': String(filters.acctype), 'f-acct': filters.acct, 'f-q': filters.q, 'f-creator': filters.creator };
+    Object.entries(v).forEach(([id, val]) => { const el = $(id); if (el && document.activeElement !== el) el.value = val; });
+  }
+  ['f-from', 'f-to'].forEach((id) => {
+    $(id).addEventListener('change', (e) => { const el = e.target; if (el.value && el.validity.valid) setFilters(id === 'f-from' ? { from: el.value } : { to: el.value }); });
+    $(id).addEventListener('blur', (e) => { e.target.value = id === 'f-from' ? filters.from : filters.to; });
+  });
+  $('f-le').addEventListener('change', (e) => setFilters({ le: e.target.value }));
+  $('f-status').addEventListener('change', (e) => setFilters({ status: e.target.value }));
+  $('f-acctype').addEventListener('change', (e) => setFilters({ acctype: Number(e.target.value) }));
+  $('f-creator').addEventListener('change', (e) => setFilters({ creator: e.target.value }));
+  function applyText() {
+    const a = $('f-acct').value.trim(), q = $('f-q').value.trim();
+    const okA = ACCT.test(a), okQ = Q.test(q) && !/['"\\`]/.test(q);
+    $('f-acct').classList.toggle('gj-bad', !okA); $('f-q').classList.toggle('gj-bad', !okQ); $('f-hint').hidden = okA && okQ;
+    if (okA && okQ && (a !== filters.acct || q !== filters.q)) setFilters({ acct: a, q });
+  }
+  $('filters').addEventListener('submit', (e) => { e.preventDefault(); applyText(); });
+  ['f-acct', 'f-q'].forEach((id) => $(id).addEventListener('change', applyText));
+  $('f-reset').addEventListener('click', () => { $('f-hint').hidden = true; ['f-acct', 'f-q'].forEach((id) => $(id).classList.remove('gj-bad')); setFilters({ ...DEFAULTS }); });
+  $('j-prev').addEventListener('click', () => { jpage = Math.max(0, jpage - 1); loadJournals(); });
+  $('j-next').addEventListener('click', () => { jpage += 1; loadJournals(); });
+  $('l-prev').addEventListener('click', () => { lpage = Math.max(0, lpage - 1); loadLines(); });
+  $('l-next').addEventListener('click', () => { lpage += 1; loadLines(); });
+  $('l-clear').addEventListener('click', () => { journal = ''; lpage = 0; loadLines(); loadJournals(); });
+
+  // ---------- export (built in the browser from paged API calls)
+  const JCOLS = [
+    { label: 'Journal', key: 'journalnum', width: 20 }, { label: 'Legal entity', key: 'le', width: 11 }, { label: 'Description', key: 'description', width: 50 },
+    { label: 'Created by', key: 'createdby', width: 18 }, { label: 'Status', key: 'status', width: 12 }, { label: 'Posted at', key: 'posted_at', width: 17 },
+    { label: 'First line date', key: 'first_date', type: 'date', width: 14 }, { label: 'Last line date', key: 'last_date', type: 'date', width: 14 },
+    { label: 'Vouchers', key: 'vouchers', type: 'int', width: 10 }, { label: 'Lines', key: 'lines', type: 'int', width: 9 }, { label: 'Currencies', key: 'currencies', width: 14 },
+    { label: 'Debit', key: 'debit', type: 'money', width: 18 }, { label: 'Credit', key: 'credit', type: 'money', width: 18 }];
+  const LCOLS = [
+    { label: 'Date', key: 'transdate', type: 'date', width: 12 }, { label: 'Journal', key: 'journalnum', width: 20 }, { label: 'Voucher', key: 'voucher', width: 18 },
+    { label: 'Legal entity', key: 'le', width: 11 }, { label: 'Line', key: 'line', type: 'int', width: 7 },
+    { label: 'Account type', key: 'account_type', width: 13 }, { label: 'Account', key: 'account', width: 28 }, { label: 'Main account', key: 'gl_account', width: 13 }, { label: 'Account name', key: 'account_name', width: 34 },
+    { label: 'Offset type', key: 'offset_type', width: 12 }, { label: 'Offset account', key: 'offset_account', width: 28 }, { label: 'Offset main account', key: 'offset_gl', width: 13 }, { label: 'Offset name', key: 'offset_name', width: 34 },
+    { label: 'Debit', key: 'debit', type: 'money', width: 16 }, { label: 'Credit', key: 'credit', type: 'money', width: 16 }, { label: 'Currency', key: 'currency', width: 9 },
+    { label: 'Exchange rate', key: 'exch_rate', type: 'num', width: 12 }, { label: 'Transaction type', key: 'transaction_type', width: 18 }, { label: 'Posting type', key: 'posting_type', width: 20 },
+    { label: 'Posting profile', key: 'posting_profile', width: 13 }, { label: 'Line text', key: 'description', width: 50 }, { label: 'Invoice', key: 'invoice', width: 14 },
+    { label: 'Document', key: 'document', width: 14 }, { label: 'Created by', key: 'created_by', width: 18 }, { label: 'Status', key: 'status', width: 12 }, { label: 'Journal description', key: 'journal_description', width: 40 }];
+  const MAX_LINES = 200000;
+  $('x-export').addEventListener('click', async () => {
+    const btn = $('x-export'), st = $('x-status'), f = { ...filters };
+    const say = (t, tone) => { st.dataset.tone = tone || ''; st.textContent = t; };
+    btn.disabled = true;
+    try {
+      let jrows = [], page = 0, total = 0;
+      do {
+        say(`Loading journals… ${fmtInt(jrows.length)}`);
+        const r = await api('journals', { ...f, page, size: 2000 });
+        total = r.total; jrows = jrows.concat(r.rows); page += 1;
+        if (!r.rows.length) break;
+      } while (jrows.length < total);
+      let lrows = [], got = 0; page = 0;
+      do {
+        say(`Loading journal lines… ${fmtInt(lrows.length)}`);
+        const r = await api('lines', { ...f, page, size: 4000 });
+        got = r.rows.length; lrows = lrows.concat(r.rows); page += 1;
+      } while (got === 4000 && lrows.length < MAX_LINES);
+      const cut = got === 4000;
+      say(`Building the workbook (${fmtInt(jrows.length)} journals, ${fmtInt(lrows.length)} lines)…`);
+      await new Promise((r) => setTimeout(r, 30));
+      const ACC = { '-1': 'Any account type', 0: 'Ledger (GL)', 1: 'Customer', 2: 'Vendor', 6: 'Bank', 5: 'Fixed assets' };
+      const STATUS = { '': 'Posted and not posted', posted: 'Posted', open: 'Not posted' };
+      const info = [['Report', 'GJV Journal Register (D365 general journals, journal name GJV)'], ['Exported at', d3.timeFormat('%Y-%m-%d %H:%M')(new Date())],
+        ['From', f.from], ['To', f.to], ['Legal entity', f.le || 'All entities'], ['Created by', f.creator || 'Everyone'], ['Status', STATUS[f.status]],
+        ['Account type', ACC[f.acctype]], ['Account code', f.acct || 'Any'], ['Search', f.q || 'None'],
+        ['Journals exported', jrows.length], ['Lines exported', lrows.length],
+        ['Note', 'Only lines dated 1 January 2026 or later are included. Amounts are in each line\'s transaction currency.']];
+      if (cut) info.push(['Warning', `Lines stop at ${fmtInt(MAX_LINES)}. Narrow the filters and export again for the rest.`]);
+      const blob = window.gjXlsx.workbook([
+        { name: 'Summary', cols: [{ label: 'Item', key: 'k', width: 20 }, { label: 'Value', key: 'v', width: 90 }], rows: info.map(([k, v]) => ({ k, v: String(v) })) },
+        { name: 'Journals', cols: JCOLS, rows: jrows }, { name: 'Lines', cols: LCOLS, rows: lrows }]);
+      const name = `GJV journals ${f.from} to ${f.to}${f.le ? ' ' + f.le : ''}.xlsx`;
+      const url = URL.createObjectURL(blob); const a = document.createElement('a');
+      a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000);
+      say(`Downloaded ${name}: ${fmtInt(jrows.length)} journals and ${fmtInt(lrows.length)} lines.` + (cut ? ' Some lines were left out; see the Summary sheet.' : ''), 'ok');
+    } catch (e) { say('Export failed. ' + e.message, 'bad'); }
+    finally { btn.disabled = false; }
+  });
+
+  // ---------- renderers
+  function renderSummary(s) {
+    document.querySelectorAll('[data-k]').forEach((el) => {
+      const k = el.dataset.k, v = s ? s[k] : null;
+      el.textContent = s == null ? '' : (k.endsWith('_date') ? (v ? fmtDate(v) : 'n/a') : fmtInt(+v || 0));
+    });
+  }
+  function renderCreatorsOptions(names) {
+    const sel = $('f-creator'); const cur = filters.creator;
+    const list = names.slice(); if (cur && !list.includes(cur)) list.unshift(cur);
+    sel.replaceChildren(new Option('Everyone', ''), ...list.map((n) => new Option(n, n))); sel.value = cur;
+  }
+  function renderMonth(rows) {
+    const el = $('chart-month');
+    if (!rows.length) return note(el, 'No journals match these filters.');
+    el.replaceChildren();
+    const data = rows.map((d) => ({ k: d.month, v: +d.journals, n: +d.lines }));
+    const W = Math.max(260, el.clientWidth), H = 230;
+    const y = d3.scaleLinear().domain([0, d3.max(data, (d) => d.v) || 1]).nice().range([H - 26, 20]);
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('role', 'img')
+      .attr('aria-label', 'GJV journals per month: ' + data.map((d) => d.k + ' ' + d.v).join(', '));
+    const gy = svg.append('g').attr('class', 'gj-grid').call(d3.axisLeft(y).ticks(4).tickFormat(d3.format('~s')));
+    let ml = 8; gy.selectAll('text').each(function () { ml = Math.max(ml, this.getComputedTextLength() + 14); });
+    gy.attr('transform', `translate(${ml},0)`).call(d3.axisLeft(y).ticks(4).tickFormat(d3.format('~s')).tickSize(-(W - ml - 6))).call((g) => g.select('.domain').remove());
+    const x = d3.scaleBand().domain(data.map((d) => d.k)).range([ml, W - 6]).padding(0.25);
+    const every = x.bandwidth() < 26 ? 2 : 1;
+    svg.append('g').attr('class', 'gj-axis').attr('transform', `translate(0,${H - 26})`)
+      .call(d3.axisBottom(x).tickSizeOuter(0).tickFormat((k, i) => (i % every ? '' : d3.utcFormat('%b')(parseMonth(k)))));
+    const tip = tipFor(el);
+    svg.append('g').selectAll('rect').data(data).join('rect').attr('class', 'gj-bar').attr('rx', 2)
+      .attr('x', (d) => x(d.k)).attr('width', x.bandwidth()).attr('y', (d) => y(d.v)).attr('height', (d) => y(0) - y(d.v))
+      .on('mousemove', (ev, d) => showTip(el, tip, ev, d3.utcFormat('%B %Y')(parseMonth(d.k)), `${fmtInt(d.v)} journals · ${fmtInt(d.n)} lines`))
+      .on('mouseleave', () => { tip.hidden = true; })
+      .on('click', (ev, d) => {
+        const end = d3.utcFormat('%Y-%m-%d')(d3.utcDay.offset(d3.utcMonth.offset(parseMonth(d.k), 1), -1));
+        setFilters({ from: d.k + '-01', to: end < today ? end : today });
+      });
+    if (x.bandwidth() >= 22) svg.append('g').selectAll('text').data(data).join('text').attr('class', 'gj-val').attr('text-anchor', 'middle')
+      .attr('x', (d) => x(d.k) + x.bandwidth() / 2).attr('y', (d) => y(d.v) - 5).text((d) => fmtInt(d.v));
+  }
+  function renderEntity(rows) {
+    const el = $('chart-entity');
+    if (!rows.length) return note(el, 'No journals match these filters.');
+    el.replaceChildren();
+    const data = rows.map((d) => ({ k: d.le, v: +d.journals, n: +d.lines, c: +d.creators, o: +d.open_journals }));
+    const W = Math.max(260, el.clientWidth), bh = 20, gap = 6, H = data.length * (bh + gap) + 8;
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('role', 'img')
+      .attr('aria-label', 'GJV journals per legal entity: ' + data.map((d) => d.k + ' ' + d.v).join(', '));
+    const labels = svg.append('g').selectAll('text').data(data).join('text').attr('class', 'gj-lbl').attr('x', 0).attr('y', (d, i) => i * (bh + gap) + bh / 2 + 4).text((d) => d.k);
+    let ml = 0; labels.each(function () { ml = Math.max(ml, this.getComputedTextLength()); }); ml += 10;
+    const vals = svg.append('g').selectAll('text').data(data).join('text').attr('class', 'gj-val').text((d) => fmtInt(d.v));
+    let vr = 0; vals.each(function () { vr = Math.max(vr, this.getComputedTextLength()); }); vr += 8;
+    const x = d3.scaleLinear().domain([0, d3.max(data, (d) => d.v) || 1]).range([ml, W - vr]);
+    const tip = tipFor(el);
+    svg.append('g').selectAll('rect').data(data).join('rect').attr('class', 'gj-bar').attr('rx', 2)
+      .attr('x', ml).attr('y', (d, i) => i * (bh + gap)).attr('height', bh).attr('width', (d) => Math.max(1, x(d.v) - ml))
+      .style('opacity', (d) => (filters.le && d.k !== filters.le ? 0.35 : 1))
+      .on('mousemove', (ev, d) => showTip(el, tip, ev, d.k, `${fmtInt(d.v)} journals · ${fmtInt(d.n)} lines · ${d.c} creators · ${d.o} not posted`))
+      .on('mouseleave', () => { tip.hidden = true; })
+      .on('click', (ev, d) => setFilters({ le: filters.le === d.k ? '' : d.k }));
+    vals.attr('x', (d) => x(d.v) + 6).attr('y', (d, i) => i * (bh + gap) + bh / 2 + 4);
+  }
+  function renderCreators(rows) {
+    const tb = $('t-creators');
+    if (!rows.length) return msgRow(tb, 6, 'No journals match these filters.');
+    tb.replaceChildren(...rows.map((d) => {
+      const tr = document.createElement('tr'); tr.className = 'gj-click' + (filters.creator === d.createdby ? ' gj-sel' : ''); tr.tabIndex = 0;
+      td(tr, d.createdby); td(tr, fmtInt(d.journals), 'gj-r'); td(tr, fmtInt(d.lines), 'gj-r'); td(tr, fmtInt(d.open_journals), 'gj-r'); td(tr, d.entities); td(tr, fmtDate(d.last_date));
+      const pick = () => { if (d.createdby !== '(blank)') setFilters({ creator: filters.creator === d.createdby ? '' : d.createdby }); };
+      tr.addEventListener('click', pick); tr.addEventListener('keydown', (e) => { if (e.key === 'Enter') pick(); });
+      return tr;
+    }));
+  }
+  function renderCurrency(rows) {
+    const tb = $('t-currency');
+    if (!rows.length) return msgRow(tb, 4, 'No lines match these filters.');
+    tb.replaceChildren(...rows.map((d) => { const tr = document.createElement('tr'); td(tr, d.cur); td(tr, fmtInt(d.lines), 'gj-r'); td(tr, fmtMoney(d.debit), 'gj-r'); td(tr, fmtMoney(d.credit), 'gj-r gj-cr'); return tr; }));
+  }
+
+  // ---------- loaders
+  function sectionError(fn, e) { try { fn(e); } catch (_) { /* keep page alive */ } }
+  async function loadJournals() {
+    const tb = $('t-journals'); msgRow(tb, 13, 'Loading journals…'); $('j-prev').disabled = $('j-next').disabled = true;
+    try {
+      const r = await api('journals', { page: jpage });
+      $('j-info').textContent = r.total ? `Journals ${fmtInt(jpage * r.page_size + 1)} to ${fmtInt(jpage * r.page_size + r.rows.length)} of ${fmtInt(r.total)}` : 'No journals';
+      $('j-prev').disabled = jpage <= 0; $('j-next').disabled = (jpage + 1) * r.page_size >= r.total;
+      if (!r.rows.length) return msgRow(tb, 13, 'No journals match these filters. Widen the dates or clear a filter.');
+      tb.replaceChildren(...r.rows.map((d) => {
+        const tr = document.createElement('tr'); tr.className = 'gj-click' + (journal === d.journalnum ? ' gj-sel' : ''); tr.tabIndex = 0;
+        td(tr, d.journalnum, 'gj-mono'); td(tr, d.le); td(tr, d.description, 'gj-wrap'); td(tr, d.createdby); pill(td(tr, ''), d.status); td(tr, d.posted_at || '');
+        td(tr, fmtDate(d.first_date)); td(tr, fmtDate(d.last_date)); td(tr, fmtInt(d.vouchers), 'gj-r'); td(tr, fmtInt(d.lines), 'gj-r'); td(tr, d.currencies);
+        td(tr, fmtMoney(d.debit), 'gj-r'); td(tr, fmtMoney(d.credit), 'gj-r gj-cr');
+        const open = () => { journal = d.journalnum; lpage = 0; tb.querySelectorAll('tr').forEach((x) => x.classList.toggle('gj-sel', x === tr)); loadLines(); $('lines').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); };
+        tr.addEventListener('click', open); tr.addEventListener('keydown', (e) => { if (e.key === 'Enter') open(); });
+        return tr;
+      }));
+    } catch (e) { $('j-info').textContent = ''; msgRow(tb, 13, 'Journals did not load. ' + e.message); }
+  }
+  async function loadLines() {
+    const tb = $('t-lines'); msgRow(tb, 26, 'Loading journal lines…'); $('l-prev').disabled = $('l-next').disabled = true;
+    $('l-title').textContent = journal ? 'of journal ' + journal : 'matching the filters'; $('l-clear').hidden = !journal;
+    try {
+      const r = await api('lines', { page: lpage, journal });
+      $('l-info').textContent = r.rows.length ? `Lines ${fmtInt(lpage * r.page_size + 1)} to ${fmtInt(lpage * r.page_size + r.rows.length)}` : 'No lines';
+      $('l-prev').disabled = lpage <= 0; $('l-next').disabled = r.rows.length < r.page_size;
+      if (!r.rows.length) return msgRow(tb, 26, 'No lines match these filters.');
+      tb.replaceChildren(...r.rows.map((d) => {
+        const tr = document.createElement('tr'); const dr = +d.debit, cr = +d.credit;
+        td(tr, fmtDate(d.transdate)); td(tr, d.journalnum, 'gj-mono'); td(tr, d.voucher, 'gj-mono'); td(tr, d.le); td(tr, d.line, 'gj-r');
+        td(tr, d.account_type); td(tr, d.account, 'gj-mono'); td(tr, d.gl_account, 'gj-mono'); td(tr, d.account_name);
+        td(tr, d.offset_type); td(tr, d.offset_account, 'gj-mono'); td(tr, d.offset_gl, 'gj-mono'); td(tr, d.offset_name);
+        td(tr, dr ? fmtMoney(dr) : '', 'gj-r'); td(tr, cr ? fmtMoney(cr) : '', 'gj-r gj-cr'); td(tr, d.currency); td(tr, d.exch_rate == null ? '' : fmtRate(d.exch_rate), 'gj-r');
+        td(tr, d.transaction_type); td(tr, d.posting_type); td(tr, d.posting_profile); td(tr, d.description, 'gj-wrap'); td(tr, d.invoice); td(tr, d.document);
+        td(tr, d.created_by); pill(td(tr, ''), d.status); td(tr, d.journal_description, 'gj-wrap');
+        return tr;
+      }));
+    } catch (e) { $('l-info').textContent = ''; msgRow(tb, 26, 'Journal lines did not load. ' + e.message); }
+  }
+  async function loadAll() {
+    const my = ++seq; const stale = () => my !== seq;
+    $('page-error').hidden = true; renderSummary(null);
+    note($('chart-month'), 'Loading monthly counts…'); note($('chart-entity'), 'Loading legal entities…');
+    msgRow($('t-creators'), 6, 'Loading creators…'); msgRow($('t-currency'), 4, 'Loading currency totals…');
+    const tasks = [
+      api('summary').then((s) => !stale() && renderSummary(s)),
+      api('by-month').then((r) => { if (!stale()) { lastMonth = r; renderMonth(r); } }).catch((e) => { if (!stale()) note($('chart-month'), 'Monthly counts did not load. ' + e.message); throw e; }),
+      api('by-entity').then((r) => { if (!stale()) { lastEntity = r; renderEntity(r); } }).catch((e) => { if (!stale()) note($('chart-entity'), 'Legal entity counts did not load. ' + e.message); throw e; }),
+      api('by-creator').then((r) => !stale() && renderCreators(r)).catch((e) => { if (!stale()) msgRow($('t-creators'), 6, 'Creators did not load. ' + e.message); throw e; }),
+      api('by-currency').then((r) => !stale() && renderCurrency(r)).catch((e) => { if (!stale()) msgRow($('t-currency'), 4, 'Currency totals did not load. ' + e.message); throw e; }),
+      api('creators').then((r) => !stale() && renderCreatorsOptions(r)).catch(() => {}),
+      loadJournals(), loadLines()];
+    const results = await Promise.allSettled(tasks);
+    const failed = results.find((r) => r.status === 'rejected');
+    if (failed && !stale()) { $('page-error').textContent = 'Some data did not load: ' + failed.reason.message; $('page-error').hidden = false; }
+  }
+
+  let lastW = 0;
+  window.addEventListener('resize', () => { const w = $('chart-month').clientWidth; if (Math.abs(w - lastW) > 40) { lastW = w; if (lastMonth) renderMonth(lastMonth); if (lastEntity) renderEntity(lastEntity); } });
+  syncControls();
+  loadAll();
+})();
+
+</script>
+<script>
+/* The two tabs. The User access panel shows and hides itself (access.html); this only
+   marks the clicked tab and shows or hides the Journals panel. */
+(function(){
+  var nav = document.getElementById('view-tabs');
+  var report = document.getElementById('panel-report');
+  if (!nav) return;
+  nav.addEventListener('click', function(e){
+    var btn = e.target.closest('button[data-view]');
+    if (!btn) return;
+    nav.querySelectorAll('button[data-view]').forEach(function(b){
+      var on = b === btn;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    if (report) report.hidden = btn.getAttribute('data-view') !== 'report';
+  });
+})();
+</script>
+<script>
+/* The provenance line in the topbar and at the foot of the page, read from the same
+   snapshot the report reads. */
+(function(){
+  fetch('data/meta.json', { cache: 'no-cache', credentials: 'same-origin' })
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(m){
+      if (!m) return;
+      var when = m.generatedAt ? new Date(m.generatedAt) : null;
+      var dubai = when ? new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Dubai', day: '2-digit',
+        month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(when) : 'unknown';
+      var meta = document.getElementById('topbar-meta');
+      if (meta) meta.textContent = (m.months || []).length + ' months · refreshed ' + dubai + ' Dubai';
+      var foot = document.getElementById('foot-stamp');
+      if (foot){
+        var src = m.source || {};
+        foot.textContent = 'Snapshot ' + dubai + ' Dubai · ' + (src.lines ? src.lines.toLocaleString('en-US') + ' journal lines' : '')
+          + (src.maxRecid ? ' · to record ' + src.maxRecid : '');
+      }
+    })
+    .catch(function(){ /* the page is still usable without a timestamp */ });
+})();
+</script>
+</body>
+</html>

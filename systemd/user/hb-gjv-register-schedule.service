@@ -1,0 +1,12 @@
+[Unit]
+Description=Apply schedule.json from GJV_Review main to hb-gjv-register.timer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/azureuser/hb-gjv-register
+ExecStart=/usr/bin/python3 /home/azureuser/hb-gjv-register/systemd/sync-schedule.py
+StandardOutput=append:/home/azureuser/hb-gjv-register/logs/schedule-sync.log
+StandardError=append:/home/azureuser/hb-gjv-register/logs/schedule-sync.log
+TimeoutStartSec=5min

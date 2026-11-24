@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>No access &middot; GJV Journal Register</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+/* Self-contained on purpose: every other asset on this site is behind the reader
+   role, so a denied visitor could not load the stylesheet or the data. The webfonts
+   are the one exception and they degrade to the system stack.
+
+   Light only, like the report and like the atlas. See build/src/theme.css. */
+:root{color-scheme:light;
+  --bg:#FFFCFD;--surface:#FFFFFF;--border:#EBDDE4;
+  --text:#171315;--text2:#756B70;--text3:#A2949B;
+  --pink:#F20A82;--pink-dim:#FFF0F7;--pink-bd:#F6C9DF;
+  --font:'DM Sans',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  --display:'Bricolage Grotesque','DM Sans',-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:var(--bg);color:var(--text);padding:24px;font-family:var(--font)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;
+  max-width:540px;width:100%;padding:38px 40px;
+  box-shadow:0 18px 42px -24px rgba(242,10,130,.42)}
+.mark{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;
+  border-radius:11px;background:var(--pink-dim);border:1px solid var(--pink-bd);margin-bottom:18px}
+.mark svg{width:21px;height:21px;stroke:var(--pink);fill:none;stroke-width:1.7;stroke-linecap:round}
+h1{font-family:var(--display);font-size:21px;font-weight:800;margin:0 0 10px;letter-spacing:-.015em}
+p{font-size:13.5px;color:var(--text2);line-height:1.65;margin:0 0 14px}
+.who{font-size:12px;color:var(--text3);background:var(--bg);border:1px solid var(--border);
+  border-radius:9px;padding:10px 13px;margin:0 0 18px;word-break:break-all}
+.acts{display:flex;gap:10px;flex-wrap:wrap}
+a.btn{font-size:12.5px;font-weight:700;text-decoration:none;padding:10px 16px;border-radius:9px;
+  border:1px solid var(--border);color:var(--text)}
+a.btn:hover{border-color:var(--pink-bd);color:var(--pink)}
+a.btn.p{background:var(--pink);border-color:var(--pink);color:#fff}
+a.btn.p:hover{filter:brightness(1.07);color:#fff}
+.foot{margin-top:24px;padding-top:16px;border-top:1px solid var(--border);
+  font-size:11.5px;color:var(--text3)}
+</style>
+</head>
+<body>
+  <div class="card">
+    <span class="mark"><svg viewBox="0 0 24 24"><rect x="4" y="10.5" width="16" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg></span>
+
+    <!-- Shown while the live access list is being asked, and while a sign-in that
+         predates a granted access is being repaired. Both are quick and neither needs
+         anything from the person reading it, so this says what is happening rather
+         than offering a button. Hidden by default so somebody with no JavaScript at
+         all still gets the denial below, unchanged. -->
+    <div id="busy" hidden>
+      <h1 id="busyh">Checking your access&hellip;</h1>
+      <p id="busyp">One moment.</p>
+      <p class="who" id="busywho"></p>
+    </div>
+
+    <div id="deny">
+      <h1 id="denyh">You don&rsquo;t have access to this report</h1>
+      <p id="denyp">You are signed in, but this account is not on the access list for the
+         GJV Journal Register, so it cannot be opened.</p>
+      <p class="who" id="who">Checking which account you are signed in with&hellip;</p>
+      <p id="denywhy">Access is granted person by person rather than to everyone at Huda
+         Beauty, because the report holds every legal entity&rsquo;s general journals, with employee and vendor names. If
+         you need it, request access below and say what you need it for. Adding somebody
+         takes a couple of minutes.</p>
+      <p id="denyalt">If you have more than one work account, you may simply be signed in
+         with the wrong one. Switching account is worth trying first.</p>
+      <div class="acts">
+        <a class="btn p" href="mailto:shirish@hudabeauty.com?subject=Trial%20Balance%20access%20request">Request access</a>
+        <a class="btn" href="/.auth/logout?post_logout_redirect_uri=/">Sign out and switch account</a>
+        <a class="btn" id="demolink" href="/demo/" hidden>See the demo</a>
+      </div>
+    </div>
+    <div class="foot">Huda Beauty &middot; a Pulse business app</div>
+  </div>
+<script>
+/* WHY A DENIAL PAGE HAS LOGIC.
+ *
+ * Reaching this page does NOT mean the person has no access. Static Web Apps calls
+ * GetRoles once, at sign-in, and bakes the answer into the session cookie. So
+ * somebody added to the access list while they already had a session holds no role
+ * until they sign in again: every gated route refuses them and they are rewritten
+ * here, looking at a flat statement that they have no access while the list says
+ * plainly that they do.
+ *
+ * That is a defect in the mechanism, not something to hand to the reader. Telling
+ * each person to sign out and back in does not scale past the first one and it makes
+ * a working grant look broken - and on this report the person on the other end of it
+ * is usually somebody who has just been told their access is ready.
+ *
+ * So this page asks /api/me, which is open to any signed-in account and re-reads the
+ * access list live, ignoring the roles in the cookie entirely. Two answers, two
+ * different things to do:
+ *
+ *   entitled  the list says yes and the platform said no, which can only be a session
+ *             older than the list. Repaired here, automatically, once. No button.
+ *   no access the list really does not admit them. The denial below is correct and is
+ *             shown with the right words for their case, with no redirect at all - so
+ *             somebody genuinely not on the list is never bounced anywhere.
+ *
+ * If /api/me cannot be reached the denial stands as written, which is the safe way
+ * round: this page can only ever offer a sign-in, never data.
+ */
+(function(){
+  /* Shared with the report page on purpose. index.html sets the same key when it
+     repairs a stale session and CLEARS it on a good load, so the two can never
+     bounce a person back and forth: one repair per tab, then a message. */
+  var REAUTH_KEY = 'hb-gjv-reauth';
+
+  var busy = document.getElementById('busy');
+  var deny = document.getElementById('deny');
+
+  function show(el){ busy.hidden = (el !== busy); deny.hidden = (el !== deny); }
+
+  function setBusy(title, msg){
+    document.getElementById('busyh').textContent = title;
+    document.getElementById('busyp').textContent = msg;
+    show(busy);
+  }
+
+  /* Name the account on whichever panel is in front of the person. Worth having on
+     the busy panel too: if the repair does need a Microsoft prompt, they can see
+     which account is about to be used. */
+  fetch('/.auth/me', {credentials:'same-origin'})
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      var cp = d && d.clientPrincipal;
+      var t = cp && cp.userDetails ? 'Signed in as ' + cp.userDetails
+                                   : 'No signed-in account was detected.';
+      document.getElementById('who').textContent = t;
+      document.getElementById('busywho').textContent = t;
+    })
+    .catch(function(){
+      document.getElementById('who').textContent = 'Could not determine the signed-in account.';
+    });
+
+  /* Sign out and straight back in, which is the only way to mint fresh roles. A
+     login with a valid session already in hand is not guaranteed to re-run the roles
+     function, and this path certainly does. It is not an interactive sign-in - Entra
+     still holds the SSO session, so it returns without asking for anything and the
+     person lands on the report. Returns false if it has already been tried in this
+     tab. */
+  function repairOnce(){
+    /* A storage read that throws (private window, site data blocked) means the
+       marker cannot be trusted to stop a second attempt, so do not start a first. */
+    try { if (sessionStorage.getItem(REAUTH_KEY) === '1') return false; }
+    catch (e) { return false; }
+    try { sessionStorage.setItem(REAUTH_KEY, '1'); } catch (e) { return false; }
+    /* The 403 is a rewrite, so the address bar still holds what was asked for and
+       the person returns where they were going. */
+    var back = window.location.pathname || '/';
+    if (back === '/403.html') back = '/';
+    window.location.replace('/.auth/logout?post_logout_redirect_uri='
+      + encodeURIComponent(back + window.location.search));
+    return true;
+  }
+
+  /* THE DEMO (Shirish, 2026-11-17: "I dont want to see - you dont have access - Instead I
+     want to show the page but with demo data"). /demo/ is the same report on made-up
+     data. Somebody the list really does not admit is sent there, and the demo's "request
+     access" button brings them back here with #request, which shows this card (and its
+     Request access button) instead of forwarding again. The demo is only offered when
+     /demo/ answers with its page, so a missing demo leaves this card exactly as it was.
+     Nobody with access is ever sent to the demo: only the access 'none' answer forwards. */
+  var WANT_CARD = window.location.hash === '#request';
+  var demoCheck = null;
+  function hasDemo(){
+    if (!demoCheck) {
+      demoCheck = fetch('/demo/', {credentials:'same-origin', cache:'no-store'})
+        .then(function(r){
+          var type = r.headers.get('content-type') || '';
+          return r.ok && type.indexOf('text/html') >= 0 ? r.text() : '';
+        })
+        .then(function(t){ return /<script[^>]*\ssrc="\/pulse-demo\.js"/.test(t); })
+        .catch(function(){ return false; });
+    }
+    return demoCheck;
+  }
+  function offerDemo(forward){
+    return hasDemo().then(function(yes){
+      if (!yes) return false;
+      document.getElementById('demolink').hidden = false;
+      if (forward && !WANT_CARD) { window.location.replace('/demo/'); return true; }
+      return false;
+    });
+  }
+  setBusy('Checking your access…', 'Reading the access list. One moment.');
+
+  fetch('/api/me', {credentials:'same-origin', cache:'no-store'})
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(me){
+      if (!me || !me.signedIn) { show(deny); offerDemo(false); return; }
+
+      if (me.access === 'none') {
+        /* Genuinely refused. Say which of the two reasons it is, because "switched
+           off" and "never added" need different things from the reader. */
+        if (me.listed) {
+          document.getElementById('denyp').textContent =
+            'You are on the access list for this report, but your access is switched '
+            + 'off, so there is nothing it can show you.';
+          document.getElementById('denywhy').textContent =
+            'Ask for it to be switched back on and the report will open the next time '
+            + 'you load this page, with no need to sign in again.';
+        }
+        offerDemo(true).then(function(gone){ if (!gone) show(deny); });
+        return;
+      }
+
+      /* The list says this person is entitled and the platform refused them anyway.
+         Only a session older than the list can cause that. */
+      setBusy('Restoring your access…',
+        'Your access has been granted since you last signed in, so this browser is '
+        + 'still holding the old permissions. Refreshing them now, then the report '
+        + 'will open.');
+      if (repairOnce()) return;
+
+      /* Already repaired once in this tab and still refused. Do not loop. */
+      document.getElementById('denyh').textContent = 'Your sign-in needs refreshing';
+      document.getElementById('denyp').innerHTML =
+        'You do have access to this report, but the sign-in in this browser predates '
+        + 'it and does not carry the permission yet. '
+        + '<a href="/.auth/logout?post_logout_redirect_uri=/">Refresh your sign-in</a>'
+        + ' and it will open.';
+      document.getElementById('denywhy').textContent =
+        'This should have happened by itself. If refreshing does not work, tell the '
+        + 'AI and Automation team.';
+      document.getElementById('denyalt').hidden = true;
+      show(deny);
+    })
+    .catch(function(){ show(deny); offerDemo(false); });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+[Unit]
+Description=GJV Journal Register refresh (times from schedule.json on GitHub main)
+
+[Timer]
+# Fallback times only. The live times come from schedule.json on main, which
+# systemd/sync-schedule.py writes into hb-gjv-register.timer.d/schedule.conf every hour.
+# Offset by 30 minutes from the trial balance so the two refreshes do not share the
+# connector at the same moment.
+OnCalendar=*-*-* 09:30:00 Asia/Dubai
+OnCalendar=*-*-* 12:30:00 Asia/Dubai
+OnCalendar=*-*-* 14:30:00 Asia/Dubai
+OnCalendar=*-*-* 17:30:00 Asia/Dubai
+# Must stay false: see hb-trial-balance.timer for why.
+Persistent=false
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

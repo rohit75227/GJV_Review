@@ -1,0 +1,9 @@
+[Unit]
+Description=Hourly: apply schedule.json from GitHub main to hb-gjv-register.timer
+
+[Timer]
+OnCalendar=*-*-* *:10:00 Asia/Dubai
+Persistent=false
+
+[Install]
+WantedBy=timers.target

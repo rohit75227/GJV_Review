@@ -1,0 +1,379 @@
+<!-- =========================================================================
+     USER ACCESS - who may open the GJV Journal Register.
+
+     A second tab beside Journals,
+     shown only to an admin. It is a separate source file, and its script is a
+     separate closure from the report's, for the reason the whole page is
+     assembled rather than edited: src/report.html is the report exactly as it
+     arrived and its logic is not ours to touch. Nothing below reaches into it,
+     and it reaches into nothing below.
+
+     The tab hides itself from everybody who is not an admin, but that is
+     presentation only: /api/users refuses every method below admin on the
+     server, and refuses it the same way whether the call came from this page
+     or from curl with a stolen session.
+
+     There is no Save button. Access is not the kind of thing to leave sitting
+     unsaved in a dialog, so every change goes to the server the moment it is
+     made, and every write re-reads the list afterwards rather than patching
+     the local copy - so what is on screen is what the file says, including a
+     change another admin made a moment ago and including a refusal this page
+     did not predict.
+     ========================================================================= -->
+<div class="view-panel" id="panel-access" hidden>
+  <main>
+    <div id="access-host">
+      <div class="empty-state">
+        <p class="display">Loading</p>
+        <p>Reading the access list&hellip;</p>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* Shared with 403.html on purpose. That page sets this key when it repairs a
+     session older than the access list; clearing it here, on a page that loaded,
+     means the next genuine denial in this tab can be repaired too. Without the
+     clear, one repair per tab would be one repair per tab forever. */
+  var REAUTH_KEY = 'hb-gjv-reauth';
+  try { sessionStorage.removeItem(REAUTH_KEY); } catch (e) { /* private window */ }
+
+  var host = document.getElementById('access-host');
+  var panel = document.getElementById('panel-access');
+  var tabBtn = document.getElementById('tab-access');
+  var viewTabs = document.getElementById('view-tabs');
+
+  /* What /api/me said about the person reading this. null until it answers. */
+  var ME = null;
+
+  /* null means "not fetched yet", which draws as loading rather than as an empty
+     list. An empty access list and an unread one look identical on screen
+     otherwise, and one of them is alarming. */
+  var users = null;
+  var loadError = '';
+  /* False when the server cannot write the list back: no GitHub token installed,
+     or GitHub unreachable. Reading still works from the copy in the deployed
+     bundle, so the tab shows who has access and says plainly that it cannot
+     change it, rather than looking like the access list itself has broken. */
+  var writable = true;
+  var readOnlyNote = '';
+  var busy = '';
+  var note = '';
+  var noteErr = false;
+  /* What is typed into the add form. Kept here because every write redraws the
+     whole tab, and a redraw after a failed add must not throw away what was
+     being typed. */
+  var draft = { email: '', name: '', admin: false };
+
+  function esc(s){
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function $(sel, root){ return (root || document).querySelector(sel); }
+  function $$(sel, root){
+    return Array.prototype.slice.call((root || document).querySelectorAll(sel));
+  }
+
+  // ======================================================================
+  // Talking to /api/users
+  // ======================================================================
+
+  function fetchUsers(){
+    return fetch('/api/users', {credentials:'same-origin', cache:'no-store'})
+      .then(function(r){
+        return r.json().then(function(b){
+          if (!r.ok) throw new Error(b && b.error ? b.error : 'HTTP ' + r.status);
+          return b;
+        });
+      })
+      .then(function(b){
+        users = b.users || [];
+        writable = b.writable !== false;
+        readOnlyNote = b.notice || '';
+        loadError = '';
+      })
+      .catch(function(err){ users = []; loadError = err.message; });
+  }
+
+  function send(url, method, body){
+    var init = {method: method, credentials: 'same-origin'};
+    if (body){
+      init.headers = {'Content-Type': 'application/json'};
+      init.body = JSON.stringify(body);
+    }
+    return fetch(url, init);
+  }
+
+  /* Every write re-reads. A refusal leaves the file untouched, and the page should
+     show that rather than the change it hoped for, so the re-read happens on both
+     paths. */
+  function write(promise, busyText){
+    busy = busyText || 'Saving…';
+    note = ''; noteErr = false;
+    render();
+    return promise
+      .then(function(r){
+        if (r.status === 204) return null;
+        return r.json().then(function(b){
+          if (!r.ok) throw new Error(b && b.error ? b.error : 'HTTP ' + r.status);
+          return b;
+        });
+      })
+      .then(function(){ return fetchUsers().then(function(){ busy = ''; }); })
+      .catch(function(err){
+        return fetchUsers().then(function(){
+          busy = '';
+          note = err.message;
+          noteErr = true;
+        });
+      })
+      .then(render);
+  }
+
+  /* Is this row the person reading the page? Compared case-insensitively, because
+     Azure returns whatever casing the directory holds. */
+  function isMe(u){
+    var mine = (ME && ME.email ? String(ME.email) : '').trim().toLowerCase();
+    return !!mine && mine === String(u.email || '').trim().toLowerCase();
+  }
+
+  // ======================================================================
+  // Drawing
+  // ======================================================================
+
+  function render(){
+    if (!ME || !ME.admin){
+      host.innerHTML = '<div class="empty-state"><p class="display">Not available</p>'
+        + '<p>Managing access needs the admin role.</p></div>';
+      return;
+    }
+    if (users === null){
+      host.innerHTML = '<div class="empty-state"><p class="display">Loading</p>'
+        + '<p>Reading the access list&hellip;</p></div>';
+      return;
+    }
+
+    var admins = users.filter(function(u){ return u.active && u.role === 'admin'; }).length;
+    var rows = users.slice().sort(function(a, b){
+      return String(a.name || a.email).localeCompare(String(b.name || b.email));
+    });
+
+    host.innerHTML =
+      '<section class="ac-sec">'
+      + '<div class="ac-head"><h2>People with access</h2>'
+      + '<span class="ac-count">' + rows.length + ' '
+      + (rows.length === 1 ? 'person' : 'people') + '</span></div>'
+      + '<p class="ac-lead">Microsoft still handles the sign-in itself. This list decides '
+      + 'who is let through afterwards. Everybody on it reads the whole report, every legal '
+      + 'entity\'s GJV journals; an admin can also change this list. Anybody not on it is signed '
+      + 'in, refused, and told so. Changes save the moment you make them.</p>'
+      + (loadError
+          ? '<div class="ac-err"><b>The access list could not be loaded.</b> '
+            + esc(loadError) + '</div>'
+          : '')
+      + (writable
+          ? ''
+          : '<div class="ac-err"><b>Read only.</b> ' + esc(readOnlyNote) + '</div>')
+      + '<div class="ac-tblwrap"><table class="ac-tbl"><thead><tr>'
+      + '<th scope="col" class="ac-cperson">Person</th>'
+      + '<th scope="col">Manage access</th>'
+      + '<th scope="col">Active</th>'
+      + '<th scope="col"></th>'
+      + '</tr></thead><tbody>'
+      + (rows.length ? rows.map(userRow(admins)).join('')
+          : '<tr><td colspan="4" class="ac-dim">Nobody is listed yet.</td></tr>')
+      + '</tbody></table></div>'
+      + (ME.breakGlass
+          ? '<p class="ac-lead ac-bg">You are a permanent admin, set in the code rather '
+            + 'than in this list, so you cannot be locked out of this page even by a '
+            + 'change made here.</p>'
+          : '')
+      + '</section>'
+      + (writable ? addForm() : '');
+
+    wire();
+  }
+
+  function userRow(admins){
+    return function(u){
+      var isAdmin = u.role === 'admin';
+      var me = isMe(u);
+      /* The last active admin is the one record that cannot be touched. The server
+         refuses it too; this stops somebody reaching for it in the first place. */
+      var lastAdmin = u.active && isAdmin && admins <= 1;
+      var locked = lastAdmin || !writable;
+      var added = u.addedAt ? String(u.addedAt).slice(0, 10) : '';
+
+      return '<tr' + (me ? ' class="ac-me"' : '') + '>'
+        + '<td class="ac-cperson"><b>' + esc(u.name || u.email.split('@')[0]) + '</b>'
+          + (me ? ' <span class="ac-you">you</span>' : '')
+          + '<br><span class="ac-mail">' + esc(u.email) + '</span>'
+          + (added ? '<span class="ac-when">added ' + esc(added)
+              + (u.addedBy ? ' by ' + esc(u.addedBy) : '') + '</span>' : '')
+          + '</td>'
+        /* Two separate questions, two separate controls. Spend Prism first shipped
+           this as one dropdown that changed privilege as a side effect of changing
+           scope, and it silently demoted the person who clicked it. */
+        + '<td><label class="ac-sw"><input type="checkbox" data-uadmin="' + esc(u.email) + '"'
+          + (isAdmin ? ' checked' : '') + (locked ? ' disabled' : '') + '> '
+          + '<span>' + (isAdmin ? 'Admin' : 'No') + '</span></label></td>'
+        + '<td><label class="ac-sw"><input type="checkbox" data-uactive="' + esc(u.email) + '"'
+          + (u.active ? ' checked' : '') + (locked ? ' disabled' : '') + '> '
+          + '<span>' + (u.active ? 'On' : 'Off') + '</span></label></td>'
+        + '<td class="ac-act">'
+          + (lastAdmin
+              ? '<span class="ac-dim" title="Make somebody else an admin first">Last admin</span>'
+              : (writable
+                  ? '<button type="button" class="ac-lnk ac-danger" data-uremove="'
+                    + esc(u.email) + '">Remove</button>'
+                  : '<span class="ac-dim">Read only</span>'))
+          + '</td>'
+        + '</tr>';
+    };
+  }
+
+  function addForm(){
+    return '<section class="ac-sec">'
+      + '<div class="ac-head"><h2>Give somebody access</h2></div>'
+      + '<div class="ac-add">'
+      + '<label class="ac-f"><span>Email</span>'
+        + '<input type="text" id="acEmail" placeholder="name@hudabeauty.com" '
+        + 'autocomplete="off" value="' + esc(draft.email) + '"></label>'
+      + '<label class="ac-f"><span>Name <i>(optional)</i></span>'
+        + '<input type="text" id="acName" placeholder="e.g. Rohit Jain" '
+        + 'autocomplete="off" value="' + esc(draft.name) + '"></label>'
+      + '<label class="ac-f"><span>Manage access</span>'
+        + '<label class="ac-sw ac-swf"><input type="checkbox" id="acAdmin"'
+        + (draft.admin ? ' checked' : '') + '> '
+        + '<span>Admin, can change this list</span></label></label>'
+      + '</div>'
+      + '<div class="ac-actions">'
+        + '<button class="ac-btn" type="button" id="acAdd">Add person</button>'
+        + '<span class="ac-status' + (noteErr ? ' err' : '') + '">'
+        + esc(busy || note) + '</span>'
+      + '</div>'
+      + '</section>';
+  }
+
+  // ======================================================================
+  // Wiring. Re-run after every redraw, because the redraw replaces the nodes.
+  // ======================================================================
+
+  function wire(){
+    $$('[data-uadmin]').forEach(function(box){
+      box.addEventListener('change', function(){
+        var email = box.dataset.uadmin;
+        var u = users.filter(function(x){ return x.email === email; })[0];
+        var makeAdmin = box.checked;
+
+        /* Taking admin off YOUR OWN row is the one change you cannot undo: the page
+           you would undo it from is the page you just lost. So it is spelled out and
+           confirmed, and the checkbox is put back if the answer is no. */
+        if (!makeAdmin && isMe(u)){
+          var ok = window.confirm(
+            'Remove your own admin?\n\n'
+            + 'You would keep reading the journal register, but this User access tab '
+            + 'would disappear and you could not put your own admin back. Another '
+            + 'admin would have to do it for you.'
+            + (ME.breakGlass
+                ? '\n\nYou are also a permanent admin set in the code, so in your case '
+                  + 'this tab would stay available.'
+                : ''));
+          if (!ok){ box.checked = true; return; }
+        }
+
+        write(send('/api/users/' + encodeURIComponent(email), 'PATCH',
+          {role: makeAdmin ? 'admin' : 'viewer'}),
+          makeAdmin ? 'Making ' + email + ' an admin…'
+                    : 'Removing admin from ' + email + '…');
+      });
+    });
+
+    $$('[data-uactive]').forEach(function(box){
+      box.addEventListener('change', function(){
+        var email = box.dataset.uactive;
+        write(send('/api/users/' + encodeURIComponent(email), 'PATCH',
+          {active: box.checked}),
+          (box.checked ? 'Switching on ' : 'Switching off ') + email + '…');
+      });
+    });
+
+    $$('[data-uremove]').forEach(function(b){
+      b.addEventListener('click', function(){
+        var email = b.dataset.uremove;
+        if (!window.confirm('Remove ' + email + '?\n\nThey lose access to the trial '
+            + 'balance the next time they load it.')) return;
+        write(send('/api/users/' + encodeURIComponent(email), 'DELETE'),
+          'Removing ' + email + '…');
+      });
+    });
+
+    var em = $('#acEmail'), nm = $('#acName'), ad = $('#acAdmin');
+    if (em) em.addEventListener('input', function(){ draft.email = em.value; });
+    if (nm) nm.addEventListener('input', function(){ draft.name = nm.value; });
+    if (ad) ad.addEventListener('change', function(){ draft.admin = ad.checked; });
+    if (em) em.addEventListener('keydown', function(e){
+      if (e.key === 'Enter') { e.preventDefault(); addPerson(); }
+    });
+
+    var btn = $('#acAdd');
+    if (btn) btn.addEventListener('click', addPerson);
+  }
+
+  function addPerson(){
+    var email = (draft.email || '').trim();
+    if (!email || email.indexOf('@') <= 0 || email.charAt(email.length - 1) === '@'){
+      note = 'Enter a valid email address.'; noteErr = true; render(); return;
+    }
+    var body = {
+      email: email,
+      name: (draft.name || '').trim(),
+      role: draft.admin ? 'admin' : 'viewer'
+    };
+    write(send('/api/users', 'POST', body).then(function(r){
+      if (r.ok){ draft.email = ''; draft.name = ''; draft.admin = false; }
+      return r;
+    }), 'Giving ' + email + ' access…');
+  }
+
+  // ======================================================================
+  // The tab itself
+  //
+  // The report's own tab handler hides its four panels whenever any tab is
+  // clicked, including this one, so all this has to do is show and hide its own
+  // panel. Deliberately a second listener on the same nav rather than an edit to
+  // the report's handler: src/report.html is the report as it arrived.
+  // ======================================================================
+
+  if (viewTabs){
+    viewTabs.addEventListener('click', function(e){
+      var btn = e.target.closest('button[data-view]');
+      if (!btn) return;
+      var mine = btn.getAttribute('data-view') === 'access';
+      panel.hidden = !mine;
+      if (mine && users === null && ME && ME.admin){
+        fetchUsers().then(render);
+      }
+    });
+  }
+
+  /* /api/me is the live answer, read from the access list on this request rather
+     than out of the session cookie, so the tab appears for somebody promoted a
+     minute ago and is gone for somebody demoted a minute ago, with no sign-out in
+     between. A failure leaves the tab hidden, which is the safe way round. */
+  fetch('/api/me', {credentials:'same-origin', cache:'no-store'})
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(me){
+      ME = me || {};
+      if (!ME.admin) return;
+      if (tabBtn) tabBtn.hidden = false;
+    })
+    .catch(function(){ /* no tab, and the report is unaffected */ });
+})();
+</script>

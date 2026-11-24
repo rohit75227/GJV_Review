@@ -1,0 +1,97 @@
+name: Deploy GJV Journal Register
+
+# The refresh commits to main from the build VM at the times in schedule.json; this
+# publishes what it committed. Modelled on hb-pulse-trial-balance's deploy workflow.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - 'test/**'
+      - 'api/**'
+      - 'access/**'
+      - 'build/stage_allowlist.sh'
+      - '.github/workflows/azure-static-web-apps.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: gjv-register-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Build and deploy
+    steps:
+      - uses: actions/checkout@v4
+        with: { lfs: false, submodules: false }
+
+      - name: Stage the access list into the function bundle
+        run: ./build/stage_allowlist.sh
+
+      - name: Sanity check the built site
+        run: |
+          test -f site/index.html || { echo "site/index.html missing"; exit 1; }
+          test -f site/data/meta.json || { echo "site/data/meta.json missing"; exit 1; }
+          python3 - <<'PY'
+          import json, os
+          m = json.load(open('site/data/meta.json'))
+          months = m.get('months') or []
+          assert months, 'meta.json lists no months'
+          for mo in months:
+              p = 'site/data/lines/%s.json' % mo['key']
+              assert os.path.exists(p), 'missing %s' % p
+          assert os.path.exists('site/data/journals.json'), 'journals.json missing'
+          print('%d months, %d journals, %d lines, snapshot %s'
+                % (len(months), m['totals']['journals'], m['totals']['lines'], m['generatedAt']))
+          PY
+
+      # The same regression guard as the trial balance: a missing data file must stay a
+      # 404, never become index.html with a 200, and the site must never be public.
+      - name: Static Web App config must keep the data and the page locked
+        run: |
+          python3 - <<'PY'
+          import json
+          c = json.load(open('site/staticwebapp.config.json'))
+          assert '/data/*' in (c.get('navigationFallback', {}).get('exclude') or []), \
+              'navigationFallback does not exclude /data/*'
+          assert 'azureActiveDirectory' in c.get('auth', {}).get('identityProviders', {}), \
+              'Entra auth is missing; the register would be public'
+          BUILTIN = {'anonymous', 'authenticated'}
+          custom = sorted({r for route in c['routes'] for r in (route.get('allowedRoles') or []) if r not in BUILTIN})
+          assert not custom or c.get('auth', {}).get('rolesSource'), \
+              'routes name custom role(s) %s but there is no rolesSource' % custom
+          catchall = [r for r in c['routes'] if r['route'] == '/*']
+          assert catchall and 'anonymous' not in (catchall[0].get('allowedRoles') or []), \
+              'the catch-all route lets anonymous users in'
+          data = [r for r in c['routes'] if r['route'] == '/data/*']
+          assert data and data[0].get('allowedRoles') == ['reader'], '/data/* must need the reader role'
+          print('auth and routing checks passed')
+          PY
+
+      - name: Render the page and check it against the data
+        run: |
+          npm install --no-save --no-audit --no-fund jsdom@25 d3@7.8.5
+          node test/render.mjs
+
+      - name: Test the access boundary
+        run: node test/access.test.js
+
+      - name: Test the User access rules
+        run: node test/users.test.js
+
+      - name: Test the API handlers
+        run: |
+          npm install --prefix api --no-audit --no-fund --silent
+          node test/api.test.js
+
+      - name: Deploy
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          # The token Azure stored when the Static Web App was linked to this repository.
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_WITTY_GRASS_0C45F1510 }}
+          action: upload
+          app_location: 'site'
+          api_location: 'api'
+          output_location: ''
+          skip_app_build: true

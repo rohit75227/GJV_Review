@@ -1,0 +1,731 @@
+/* ============================================================================
+   Consolidated Trial Balance -- Pulse Atlas shell.
+
+   The design system is the Pulse Atlas's, which is itself the Huda Beauty intranet
+   template of 3 September 2026: Power Pink #F20A82 on warm white #FFFCFD, blush #FFF0F7
+   for tinted surfaces, Bricolage Grotesque on headings, DM Sans on text, JetBrains Mono
+   for anything read character by character. This page is almost entirely figures, so
+   the mono face does far more work here than it does on the atlas: every amount, code,
+   currency and period label is set in it, tabular-nums, so columns of numbers line up
+   digit under digit.
+
+   LIGHT ONLY. The atlas dropped its dark theme on 2026-09-10 and this page follows it,
+   so there is no @media (prefers-color-scheme) block and no [data-theme] block anywhere
+   below. `color-scheme:light` tells the browser not to invent a dark treatment of its
+   own. Do not reintroduce a dark palette here without doing it on the atlas first: two
+   pages in the same shell disagreeing about whether dark exists is worse than neither
+   having it.
+
+   THE CLASS NAMES ARE NOT MINE TO CHANGE. Every selector below is one the report's own
+   JavaScript emits (.banner, .segmented, .acct-combo-option, .col-total, td.neg and so
+   on). The brief was to change the look and not the logic, so this file re-dresses those
+   exact hooks rather than renaming them. If you add a component, add the class the
+   script already writes.
+   ============================================================================ */
+:root{
+  --r:16px; --r-sm:10px; --r-xs:6px; --r-lg:26px;
+  color-scheme:light;
+
+  /* Atlas palette, verbatim. */
+  --bg:#FFFCFD; --surface:#FFFFFF; --surface2:#F7F3F5; --surface3:#EFE6EB;
+  --border:#EBDDE4; --border2:#DFCAD6;
+  --text:#171315; --text2:#756B70; --text3:#A2949B;
+  --pink:#F20A82; --pink-dim:#FFF0F7; --pink-bd:#F6C9DF;
+  --pink-deep:#D9006C; --pink-light:#FF5AA8; --pink-ink:#8C154D;
+  --on-pink:#ffffff;
+  --ok:#15803d; --ok-dim:#e8f6ed; --ok-bd:#bfe3cd;
+  --bad:#c62828; --bad-dim:#fdeaea; --bad-bd:#f6c8c8;
+  --warn:#a86200; --warn-dim:#fdf1e0; --warn-bd:#f2d7ae;
+  --info:#6E2246; --info-dim:#FBEDF4; --info-bd:#EFD3E1;
+  --topbar-bg:rgba(255,252,253,.85);
+  --thead-bg:#1A1719; --thead-ink:rgba(255,255,255,.88);
+  --hero:linear-gradient(135deg,#FFFFFF 0%,#FFF8FB 56%,#FFE8F3 100%);
+  --footer-bg:linear-gradient(180deg,rgba(255,240,247,.58),rgba(255,255,255,.96));
+  --rail:linear-gradient(180deg,#FF5AA8,#F20A82,#B80058);
+  --shadow:0 18px 42px -24px rgba(242,10,130,.42);
+  --shadow-sm:0 10px 26px -20px rgba(92,21,55,.30);
+  --font:'DM Sans',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  --display:'Bricolage Grotesque','DM Sans',-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --maxw:1580px;
+
+  /* The report's own names, mapped onto the atlas palette. The script and the older
+     rules below still refer to these, so the mapping is the whole re-theme: change a
+     value here and it moves everywhere it is used. */
+  --accent:var(--pink);
+  --accent-ink:var(--on-pink);
+  --text-dim:var(--text2);
+  --total-row-bg:var(--pink-dim);
+  --total-row-border:var(--pink-bd);
+  /* The report's own name for the zebra/subrow tint (Vendor/Customer Aging's
+     drill-down rows use it directly). Same re-theme reasoning as the names
+     above -- added when those tabs were ported in and it turned out this one
+     name was never needed until then. */
+  --surface-2:var(--surface2);
+  /* A credit is not an error, so it is not the error red. This is the atlas ink pink,
+     dark enough to pass on white and clearly a different thing from the --bad red the
+     page uses when something is actually wrong. */
+  --neg:#A8004F;
+}
+
+*{box-sizing:border-box;}
+html,body{margin:0;}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:var(--font); font-size:15px; line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+  background-image:
+    radial-gradient(circle at 8% -4%,rgba(242,10,130,.105),transparent 38%),
+    radial-gradient(circle at 94% 5%,rgba(255,90,168,.07),transparent 32%);
+  background-attachment:fixed;
+}
+.wrap{max-width:var(--maxw); margin:0 auto; padding:0 24px;}
+
+/* The report's two legacy type helpers. `.display` is used for empty-state headlines and
+   `.eyebrow` labels every control, so both keep their names and take the atlas faces. */
+.display{font-family:var(--display); font-weight:800; letter-spacing:-.025em;}
+.eyebrow{
+  font-family:var(--mono); text-transform:uppercase;
+  letter-spacing:.14em; font-size:10px; font-weight:600; color:var(--text3);
+}
+
+/* ---------- topbar ---------- */
+.topbar{
+  position:sticky; top:0; z-index:60;
+  background:var(--topbar-bg); backdrop-filter:blur(18px);
+  border-top:3px solid var(--pink);
+  border-bottom:1px solid var(--border);
+  box-shadow:0 8px 30px rgba(19,10,14,.035);
+}
+.topbar-in{
+  max-width:var(--maxw); margin:0 auto; padding:0 24px;
+  height:62px; display:flex; align-items:center; gap:14px;
+}
+.brand{display:flex; align-items:center; gap:10px;}
+.brand-logo{height:21px; width:auto; display:block; flex:none;}
+.brand span{
+  display:inline-flex; align-items:center; align-self:center; line-height:1;
+  background:var(--pink); color:var(--on-pink);
+  box-shadow:0 5px 14px rgba(242,10,130,.22);
+  border-radius:999px; padding:4px 9px;
+  font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.2em;
+}
+.topbar-spacer{flex:1;}
+.topbar-meta{font-family:var(--mono); font-size:11px; color:var(--text3); letter-spacing:.02em;}
+
+/* ---------- masthead ---------- */
+/* The atlas hero: a blush gradient card with a pink rail down its left edge, the title
+   beside its standfirst rather than above it, and equal margins top and bottom so the
+   card sits centred between the topbar and the tab bar. */
+header.masthead{
+  position:relative; overflow:hidden;
+  margin:10px 0; padding:22px 28px;
+  background:var(--hero);
+  border:1px solid var(--border); border-radius:var(--r-lg);
+  box-shadow:0 28px 70px -40px rgba(106,0,53,.45);
+  outline:1px solid rgba(242,10,130,.08);
+}
+header.masthead::before{
+  content:""; position:absolute; inset:0 auto 0 0; width:5px;
+  background:var(--rail); pointer-events:none;
+}
+.masthead-in{
+  display:grid; grid-template-columns:auto minmax(0,1fr);
+  gap:0 34px; align-items:center;
+}
+.masthead-t{min-width:0;}
+.masthead-d{min-width:0; padding-left:34px; border-left:1px solid var(--border);}
+@media (max-width:900px){
+  .masthead-in{grid-template-columns:1fr; gap:12px;}
+  .masthead-d{padding-left:0; border-left:0;}
+}
+@media (max-width:620px){ header.masthead{padding:16px 18px; margin:8px 0;} }
+h1{
+  margin:0; font-family:var(--display);
+  font-size:clamp(24px,3.1vw,36px); line-height:1.02;
+  font-weight:800; letter-spacing:-.04em; text-transform:uppercase;
+  text-wrap:balance;
+}
+h1 em{font-style:normal; color:var(--pink);}
+.dek{margin:0; font-size:15px; line-height:1.5; color:var(--text2); text-wrap:pretty;}
+.dek strong{color:var(--text); font-weight:600;}
+
+/* ---------- view tabs ---------- */
+/* The atlas pill nav. The markup is the report's own <nav class="view-tabs"> with four
+   bare <button data-view>, so these rules target the buttons directly rather than a
+   .tab class the script does not write. */
+.view-tabs{
+  position:sticky; top:66px; z-index:50;
+  background:var(--topbar-bg); backdrop-filter:blur(18px);
+  border-bottom:1px solid var(--border);
+  margin:0 0 4px;
+}
+.view-tabs-in{
+  max-width:var(--maxw); margin:0 auto; padding:10px 24px;
+  display:flex; gap:6px; overflow-x:auto; scrollbar-width:none;
+}
+.view-tabs-in::-webkit-scrollbar{display:none;}
+.view-tabs button{
+  font:inherit; font-size:12.5px; font-weight:600;
+  white-space:nowrap;
+  background:none; border:0; border-radius:999px;
+  color:var(--text2); padding:9px 16px; cursor:pointer;
+  transition:background .2s,color .2s;
+}
+.view-tabs button:hover{background:var(--pink-dim); color:var(--pink-deep);}
+.view-tabs button.active{
+  background:var(--pink); color:var(--on-pink); font-weight:700;
+  box-shadow:0 5px 14px rgba(242,10,130,.18);
+}
+.view-tabs button:focus-visible{outline:2px solid var(--pink); outline-offset:2px;}
+
+.view-panel[hidden]{display:none;}
+main{display:block; padding:0 0 8px;}
+
+/* ---------- control bar ---------- */
+.controls{
+  display:flex; align-items:flex-end; gap:14px; flex-wrap:wrap;
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--r); box-shadow:var(--shadow-sm);
+  padding:14px 16px; margin:14px 0 16px;
+}
+.control-group{display:flex; flex-direction:column; gap:6px; min-width:0;}
+.control-group[hidden]{display:none;}
+.control-group .eyebrow{margin:0;}
+
+select{
+  font:inherit; font-size:13px; font-family:var(--mono);
+  color:var(--text); background:var(--surface);
+  border:1px solid var(--border2); border-radius:var(--r-sm);
+  padding:8px 11px; min-width:190px; cursor:pointer;
+  transition:border-color .15s ease, box-shadow .15s ease;
+}
+select:hover{border-color:var(--pink);}
+select:focus-visible{outline:none; border-color:var(--pink); box-shadow:0 0 0 3px var(--pink-dim);}
+
+/* Segmented control: the atlas pill nav shrunk into a bordered group. */
+.segmented{
+  display:inline-flex; gap:3px; padding:3px;
+  background:var(--surface2); border:1px solid var(--border);
+  border-radius:999px;
+}
+.segmented button{
+  font:inherit; font-size:12px; font-weight:600;
+  background:none; border:0; border-radius:999px;
+  color:var(--text2); padding:7px 14px; cursor:pointer; white-space:nowrap;
+  transition:background .15s ease, color .15s ease;
+}
+.segmented button:hover{color:var(--pink-deep);}
+.segmented button.active{
+  background:var(--pink); color:var(--on-pink);
+  box-shadow:0 4px 12px rgba(242,10,130,.20);
+}
+.segmented button:focus-visible{outline:2px solid var(--pink); outline-offset:2px;}
+
+.btn-export,.btn-toggle{
+  font:inherit; font-size:12px; font-weight:700; letter-spacing:.02em;
+  border-radius:999px; padding:9px 18px; cursor:pointer;
+  transition:filter .15s ease, transform .15s ease, background .15s ease, color .15s ease;
+}
+.btn-export{
+  background:var(--pink); color:var(--on-pink); border:1px solid var(--pink);
+  box-shadow:0 6px 16px rgba(242,10,130,.22);
+}
+.btn-export:hover:not(:disabled){filter:brightness(1.06); transform:translateY(-1px);}
+.btn-export:active:not(:disabled){transform:translateY(0);}
+.btn-export:disabled{
+  background:var(--surface2); color:var(--text3);
+  border-color:var(--border); box-shadow:none; cursor:not-allowed;
+}
+.btn-export:focus-visible,.btn-toggle:focus-visible{outline:2px solid var(--pink); outline-offset:2px;}
+.btn-toggle{background:var(--surface); color:var(--text2); border:1px solid var(--border2);}
+.btn-toggle:hover{border-color:var(--pink); color:var(--pink-deep);}
+.btn-toggle.active{background:var(--pink-dim); border-color:var(--pink-bd); color:var(--pink-ink);}
+
+.status-pill{
+  display:inline-flex; align-items:center; gap:8px; margin-left:auto;
+  font-family:var(--mono); font-size:11px; color:var(--text2);
+  background:var(--surface2); border:1px solid var(--border);
+  border-radius:999px; padding:7px 13px;
+}
+.status-dot{
+  width:7px; height:7px; border-radius:50%; background:var(--ok); flex:none;
+  box-shadow:0 0 0 3px var(--ok-dim);
+}
+.status-dot.stale{background:var(--warn); box-shadow:0 0 0 3px var(--warn-dim);}
+
+/* ---------- account search combo ---------- */
+.acct-combo{position:relative; min-width:280px;}
+.acct-combo-input{
+  font:inherit; font-size:13px; font-family:var(--mono); width:100%;
+  color:var(--text); background:var(--surface);
+  border:1px solid var(--border2); border-radius:var(--r-sm);
+  padding:8px 11px;
+  transition:border-color .15s ease, box-shadow .15s ease;
+}
+.acct-combo-input::placeholder{color:var(--text3); font-family:var(--font);}
+.acct-combo-input:hover{border-color:var(--pink);}
+.acct-combo-input:focus-visible{outline:none; border-color:var(--pink); box-shadow:0 0 0 3px var(--pink-dim);}
+.acct-combo-panel{
+  position:absolute; z-index:70; top:calc(100% + 5px); left:0; right:0;
+  max-height:320px; overflow-y:auto;
+  background:var(--surface); border:1px solid var(--border2);
+  border-radius:var(--r-sm); box-shadow:0 24px 54px -26px rgba(92,21,55,.45);
+}
+.acct-combo-option{
+  display:flex; align-items:baseline; gap:10px;
+  padding:8px 11px; cursor:pointer;
+  font-family:var(--mono); font-size:12.5px; color:var(--text);
+  border-bottom:1px solid var(--surface2);
+}
+.acct-combo-option:last-child{border-bottom:0;}
+.acct-combo-option:hover,.acct-combo-option.active{background:var(--pink-dim); color:var(--pink-ink);}
+.acct-combo-option .acct-combo-name{
+  font-family:var(--font); font-size:12.5px; color:var(--text2);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.acct-combo-empty{padding:12px; font-size:13px; color:var(--text3);}
+
+/* ---------- banners ---------- */
+/* The atlas .note: a tinted box with a coloured rule down its left edge. Default is the
+   informational blush; .good takes the green, .simulated the amber. */
+.banner{
+  background:var(--info-dim); border:1px solid var(--info-bd);
+  border-left:3px solid var(--info);
+  border-radius:var(--r-sm); padding:11px 14px; margin:0 0 10px;
+  font-size:13.5px; color:var(--text2);
+}
+.banner strong{color:var(--text); font-weight:700;}
+.banner.good{background:var(--ok-dim); border-color:var(--ok-bd); border-left-color:var(--ok);}
+.banner.good strong{color:var(--ok);}
+.banner.simulated{background:var(--warn-dim); border-color:var(--warn-bd); border-left-color:var(--warn);}
+.banner.simulated strong{color:var(--warn);}
+.banner.info{background:var(--info-dim); border-color:var(--info-bd); border-left-color:var(--info);}
+.banner-row{display:flex; align-items:center; gap:10px;}
+.banner-summary{flex:1; min-width:0;}
+.banner-link{
+  font:inherit; font-size:11px; font-weight:700; font-family:var(--mono);
+  text-transform:uppercase; letter-spacing:.08em;
+  background:none; border:0; color:var(--pink-deep); cursor:pointer; padding:2px 4px;
+  border-bottom:1px solid transparent; flex:none;
+}
+.banner-link:hover{border-bottom-color:var(--pink);}
+.banner-close{
+  font:inherit; font-size:17px; line-height:1;
+  background:none; border:0; color:var(--text3); cursor:pointer;
+  padding:0 2px; flex:none;
+}
+.banner-close:hover{color:var(--pink);}
+.banner-detail{
+  margin-top:9px; padding-top:9px; border-top:1px solid var(--border);
+  font-size:13px; line-height:1.55;
+}
+.banner .warning-item{
+  display:inline-block; font-family:var(--mono); font-size:11.5px;
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--r-xs); padding:2px 7px; margin:2px 0;
+  cursor:help;
+}
+.banner .hint{color:var(--text3); font-size:12.5px;}
+
+/* ---------- tables ---------- */
+.table-card{
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--r); box-shadow:var(--shadow-sm); overflow:hidden;
+}
+.table-scroll{overflow:auto; max-height:calc(100vh - 300px);}
+table{border-collapse:separate; border-spacing:0; width:100%; font-size:13px;}
+
+thead th{
+  position:sticky; top:0; z-index:3;
+  background:var(--thead-bg); color:var(--thead-ink);
+  font-family:var(--mono); font-size:10px; font-weight:600;
+  text-transform:uppercase; letter-spacing:.08em;
+  text-align:right; padding:11px 13px; white-space:nowrap;
+  border-bottom:1px solid var(--thead-bg);
+}
+thead th.col-account,thead th.col-name,thead th.col-ccy,
+thead th.col-company,thead th.col-acct{text-align:left;}
+/* The first two columns stay put while the entity columns scroll sideways, which is the
+   only way a 16 company table is readable: without it you lose which account a row is
+   four columns in. z-index 4 keeps them above the rest of the sticky header row. */
+thead th.col-account{position:sticky; left:0; z-index:4; min-width:96px;}
+thead th.col-name{position:sticky; left:96px; z-index:4; min-width:220px;}
+thead th.col-name.with-ccy{left:96px;}
+thead th.col-ccy{min-width:64px;}
+thead th.col-company{min-width:80px;}
+thead th.col-acct{min-width:170px;}
+th.col-total{border-left:2px solid rgba(255,255,255,.22);}
+/* Sortable amount-column headers: clicking toggles highest-to-lowest / lowest-to-highest. */
+th.sortable{cursor:pointer; user-select:none;}
+th.sortable:hover{filter:brightness(1.12);}
+/* The currency each column is denominated in, under its heading. */
+.ccy-tag{
+  display:block; font-size:9px; font-weight:500; letter-spacing:.06em;
+  color:var(--pink-light); margin-top:2px; text-transform:none;
+}
+
+tbody td{
+  padding:9px 13px; text-align:right; white-space:nowrap;
+  font-family:var(--mono); font-variant-numeric:tabular-nums;
+  border-bottom:1px solid var(--border);
+  background:var(--surface);
+}
+tbody td.col-account,tbody td.col-name,tbody td.col-ccy,tbody td.col-company{
+  position:sticky; z-index:2; text-align:left;
+}
+tbody td.col-account{left:0; font-weight:700; min-width:96px;}
+tbody td.col-name{
+  left:96px; min-width:220px; max-width:340px;
+  color:var(--text2); font-family:var(--font);
+  overflow:hidden; text-overflow:ellipsis;
+}
+tbody td.col-ccy{font-weight:700; color:var(--pink); min-width:64px;}
+tbody td.col-company{font-weight:700; color:var(--pink); min-width:80px;}
+tbody td.col-acct{text-align:left; white-space:normal; font-weight:600; min-width:170px; font-family:var(--font);}
+
+/* Zebra striping and the hover row have to beat the sticky columns' own background --
+   those cells paint one deliberately, which is what stops the scrolling columns showing
+   through them. These two rules win on specificity: `tbody tr:nth-child(even) td` and
+   `tbody tr:hover td` each score a class-equivalent plus three elements, against
+   `tbody td.col-account`'s one class plus two. Add a rule for a frozen column that is
+   any more specific than those and the striping will stop at the frozen edge. */
+tbody tr:nth-child(even) td{background:var(--surface2);}
+tbody tr:hover td{background:var(--pink-dim);}
+
+td.neg{color:var(--neg);}
+td.zero{color:var(--text3);}
+td.col-total{font-weight:700; border-left:2px solid var(--border);}
+td.na,th.na-note{color:var(--text3); font-style:italic; font-weight:400;}
+/* A cell carrying a not-yet-posted adjustment. Dotted, because it is a note about the
+   figure rather than a problem with it. */
+td.simulated{
+  background:var(--warn-dim) !important;
+  border-bottom-color:var(--warn-bd);
+  text-decoration:underline dotted var(--warn); text-underline-offset:3px; cursor:help;
+}
+
+tfoot td{
+  position:sticky; bottom:0; z-index:3;
+  padding:12px 13px; text-align:right; white-space:nowrap;
+  font-family:var(--mono); font-variant-numeric:tabular-nums;
+  font-weight:700; color:var(--pink-ink);
+  background:var(--total-row-bg);
+  border-top:2px solid var(--total-row-border);
+}
+tfoot td.col-account,tfoot td.col-name{position:sticky; z-index:4; text-align:left;}
+tfoot td.col-account{left:0;}
+tfoot td.col-name{left:96px;}
+tfoot td.col-total{border-left:2px solid var(--total-row-border);}
+
+tr.section-row td{
+  background:var(--surface3); color:var(--text);
+  font-family:var(--font); font-weight:700; text-align:left;
+  font-size:12px; text-transform:uppercase; letter-spacing:.08em;
+}
+tr.subtotal-row td{
+  background:var(--pink-dim); font-weight:700; color:var(--pink-ink);
+  border-top:1px solid var(--pink-bd);
+}
+tr.subtotal-row td.col-account,tr.subtotal-row td.col-name{background:var(--pink-dim);}
+
+ /* The Intercompany tab writes the account id and then this span for the account's
+   name, with no separator between them, so `display:block` is doing real work: without
+   it the two run together as "2112122Accounts Payable - HB Cayman Blue LLC". */
+.acct-name{
+  display:block; margin-top:2px;
+  color:var(--text2); font-family:var(--font); font-weight:400; font-size:11px;
+}
+
+/* The per-currency breakdown that the Intercompany tab shows under Details. */
+.ic-txn-breakdown{
+  margin-top:5px; padding-top:5px; border-top:1px dashed var(--border2);
+  font-size:11px; display:grid; gap:2px;
+}
+.ic-txn-line{display:flex; justify-content:space-between; gap:10px;}
+.ic-txn-ccy{color:var(--text3); font-weight:600;}
+
+/* ---------- empty state ---------- */
+.empty-state{
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--r); box-shadow:var(--shadow-sm);
+  padding:56px 28px; text-align:center;
+}
+.empty-state .display{
+  font-size:22px; color:var(--text); margin:0 0 8px;
+  text-transform:uppercase; letter-spacing:-.02em;
+}
+.empty-state p{margin:0 auto; max-width:60ch; color:var(--text2); font-size:14px;}
+.empty-state code{
+  font-family:var(--mono); font-size:.9em;
+  background:var(--surface2); border:1px solid var(--border);
+  border-radius:var(--r-xs); padding:1px 5px;
+}
+
+/* ---------- footnotes ---------- */
+/* One per tab, holding that tab's definitions. The atlas footer treatment: a blush
+   gradient panel with a rounded top edge. */
+footer.notes{
+  margin:16px 0 0; padding:20px 22px 24px;
+  background:var(--footer-bg);
+  border:1px solid var(--border); border-top:2px solid var(--pink-bd);
+  border-radius:var(--r-lg) var(--r-lg) var(--r) var(--r);
+  font-size:12.5px; color:var(--text2); line-height:1.55;
+  display:grid; gap:7px;
+}
+footer.notes .wordmark{
+  font-family:var(--display); font-weight:800; font-size:11px;
+  text-transform:uppercase; letter-spacing:.16em; color:var(--pink);
+}
+footer.notes code{
+  font-family:var(--mono); font-size:.9em;
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--r-xs); padding:1px 5px;
+}
+footer.notes strong{color:var(--text); font-weight:600;}
+footer.notes ul{margin:4px 0 0; padding-left:18px;}
+
+/* ---------- page footer ---------- */
+footer.pagefoot{
+  margin-top:34px; border-top:1px solid var(--border);
+  background:var(--footer-bg);
+  border-radius:var(--r-lg) var(--r-lg) 0 0;
+  padding:28px 30px 40px;
+  font-size:12.5px; color:var(--text2);
+}
+footer.pagefoot strong{color:var(--text);}
+footer.pagefoot p{margin:0 0 6px;}
+footer.pagefoot .foot-mono{font-family:var(--mono); font-size:11px; color:var(--text3);}
+
+@media (max-width:720px){
+  .controls{padding:12px; gap:10px;}
+  select,.acct-combo{min-width:0; width:100%;}
+  .control-group{flex:1 1 200px;}
+  .status-pill{margin-left:0;}
+  .table-scroll{max-height:none;}
+}
+
+/* ---------- user access ---------- */
+/* The fifth tab, shown only to an admin. Every selector here is namespaced `ac-`
+   and none of them existed before, which is deliberate: the report's own script
+   emits .banner, .segmented, .col-total and a dozen more, and a settings pane that
+   borrowed one of those names would re-dress a table somewhere else in the page.
+   The one exception is `table`, which is styled globally for figures - right
+   aligned, mono, tabular-nums - so .ac-tbl undoes that for a table of names. */
+.tab-admin{
+  margin-left:6px; padding-left:16px;
+  border-left:1px solid var(--border) !important;
+  border-radius:0 999px 999px 0;
+}
+/* Capped rather than run to the page's 1580px. The rest of this report is tables of
+   figures sixteen entities wide and wants every pixel; this is a settings pane of four
+   columns, and stretched to the full width it puts half a screen of nothing between a
+   person's name and the checkbox that governs them. */
+.ac-sec{
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--r); box-shadow:var(--shadow-sm);
+  padding:22px 24px 24px; margin:0 0 16px; max-width:1060px;
+}
+.ac-head{display:flex; align-items:baseline; gap:12px; margin:0 0 10px;}
+.ac-head h2{
+  margin:0; font-family:var(--display); font-size:17px; font-weight:800;
+  letter-spacing:-.02em; text-transform:uppercase; color:var(--text);
+}
+.ac-count{font-family:var(--mono); font-size:11px; color:var(--text3);}
+.ac-lead{margin:0 0 16px; font-size:13.5px; line-height:1.65; color:var(--text2); max-width:86ch;}
+.ac-bg{margin:14px 0 0; color:var(--text3); font-size:12.5px;}
+.ac-err{
+  background:var(--bad-dim); border:1px solid var(--bad-bd); color:var(--bad);
+  border-radius:var(--r-sm); padding:11px 14px; margin:0 0 14px; font-size:13px;
+}
+.ac-err b{font-weight:700;}
+
+.ac-tblwrap{
+  border:1px solid var(--border); border-radius:var(--r-sm); overflow:auto;
+}
+.ac-tbl{font-size:13px;}
+/* Undo the figures treatment: this table holds names, not amounts. */
+.ac-tbl thead th{
+  position:static; text-align:left; font-size:10px; padding:10px 14px;
+}
+.ac-tbl tbody td{
+  position:static; text-align:left; white-space:nowrap;
+  font-family:var(--font); font-variant-numeric:normal;
+  padding:12px 14px; vertical-align:top;
+}
+.ac-tbl tbody tr:last-child td{border-bottom:0;}
+.ac-tbl .ac-cperson{min-width:240px; white-space:normal;}
+.ac-tbl tbody td b{font-weight:700; color:var(--text);}
+.ac-mail{display:block; font-family:var(--mono); font-size:11px; color:var(--text2); margin-top:2px;}
+.ac-when{display:block; font-size:11px; color:var(--text3); margin-top:3px;}
+/* Your own row, badged. The one row where a change cannot be undone by you. */
+.ac-tbl tr.ac-me td{background:var(--pink-dim);}
+.ac-you{
+  font-family:var(--mono); font-size:9px; font-weight:600; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--pink-ink);
+  background:var(--surface); border:1px solid var(--pink-bd);
+  border-radius:999px; padding:2px 7px; vertical-align:middle;
+}
+.ac-dim{color:var(--text3); font-size:12.5px;}
+.ac-act{text-align:right !important;}
+
+.ac-sw{display:inline-flex; align-items:center; gap:8px; cursor:pointer; font-size:13px;}
+.ac-sw input{accent-color:var(--pink); width:15px; height:15px; cursor:pointer;}
+.ac-sw input:disabled{cursor:not-allowed;}
+.ac-sw input:disabled + span{color:var(--text3);}
+.ac-swf{padding:9px 0;}
+
+.ac-lnk{
+  font:inherit; font-size:12.5px; font-weight:600;
+  background:none; border:0; padding:0; cursor:pointer;
+  color:var(--pink-deep); text-decoration:underline; text-underline-offset:3px;
+}
+.ac-lnk:hover{color:var(--pink);}
+.ac-danger{color:var(--bad);}
+.ac-danger:hover{color:var(--bad); filter:brightness(1.15);}
+
+.ac-add{display:flex; flex-wrap:wrap; gap:14px; margin:0 0 16px;}
+.ac-f{display:flex; flex-direction:column; gap:5px; flex:1 1 230px; min-width:0;}
+.ac-f > span{
+  font-family:var(--mono); font-size:10px; font-weight:600;
+  letter-spacing:.08em; text-transform:uppercase; color:var(--text3);
+}
+.ac-f > span i{font-style:normal; text-transform:none; letter-spacing:0;}
+.ac-f input[type=text]{
+  font:inherit; font-size:13px; color:var(--text);
+  background:var(--surface); border:1px solid var(--border2);
+  border-radius:var(--r-sm); padding:10px 12px; min-width:0;
+}
+.ac-f input[type=text]:focus{outline:2px solid var(--pink); outline-offset:-1px; border-color:var(--pink);}
+.ac-actions{display:flex; align-items:center; gap:14px; flex-wrap:wrap;}
+.ac-btn{
+  font:inherit; font-size:12px; font-weight:700; letter-spacing:.02em;
+  border-radius:999px; padding:10px 20px; cursor:pointer;
+  background:var(--pink); color:var(--on-pink); border:1px solid var(--pink);
+  box-shadow:0 6px 16px rgba(242,10,130,.22);
+  transition:filter .15s ease, transform .15s ease;
+}
+.ac-btn:hover{filter:brightness(1.06); transform:translateY(-1px);}
+.ac-btn:active{transform:translateY(0);}
+.ac-btn:focus-visible{outline:2px solid var(--pink); outline-offset:2px;}
+.ac-status{font-size:12.5px; color:var(--text2);}
+.ac-status.err{color:var(--bad);}
+
+@media (max-width:720px){
+  .ac-sec{padding:16px;}
+  .ac-add{gap:10px;}
+  .ac-f{flex:1 1 100%;}
+}
+
+/* ============================================================================
+   Vendor/Customer Balance and Aging tabs: component CSS the original four
+   tabs never needed, ported from the Claude Artifact these tabs were copied
+   from. Everything below references the re-theme aliases above (--accent,
+   --text-dim, --total-row-bg, --border, --surface, --surface-2, --shadow),
+   so it already reads as Pulse Atlas rather than the artifact's own palette.
+   ============================================================================ */
+
+/* As on Date: the input itself, plus the custom calendar popup
+   (createDatePicker draws its own rather than relying on the browser's, so
+   it renders reliably inside this page's frame). */
+input.date-input{
+  font:inherit; font-size:13px; font-weight:600;
+  color:var(--text); background:var(--surface);
+  border:1px solid var(--border); border-radius:8px;
+  padding:8px 12px; cursor:pointer;
+  transition:border-color .15s ease;
+  color-scheme:light;
+}
+input.date-input:hover{ border-color:var(--accent); }
+input.date-input:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+input.date-input::-webkit-calendar-picker-indicator{ display:none; }
+.date-field{ position:relative; display:inline-flex; align-items:center; }
+.date-field input.date-input{ padding-right:36px; }
+.cal-btn{
+  position:absolute; right:5px; top:50%; transform:translateY(-50%);
+  appearance:none; border:none; background:transparent;
+  color:var(--text-dim); padding:4px; line-height:0; border-radius:6px; cursor:pointer;
+}
+.cal-btn:hover{ color:var(--accent); background:var(--total-row-bg); }
+.cal-btn:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+.cal-panel{
+  position:absolute; top:calc(100% + 6px); left:0; z-index:30; width:250px;
+  background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  box-shadow:var(--shadow); padding:10px;
+}
+.cal-head{ display:flex; align-items:center; gap:6px; margin-bottom:8px; }
+.cal-head select{ flex:1 1 auto; min-width:0; font-size:12px; padding:5px 22px 5px 8px; background-position:right 7px center; }
+.cal-nav{
+  appearance:none; flex:none; width:26px; height:26px;
+  border:1px solid var(--border); border-radius:6px; background:var(--surface);
+  color:var(--text); font-size:14px; line-height:1; cursor:pointer;
+}
+.cal-nav:hover:not(:disabled){ border-color:var(--accent); color:var(--accent); }
+.cal-nav:disabled{ opacity:.4; cursor:default; }
+.cal-nav:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+.cal-grid{ display:grid; grid-template-columns:repeat(7, 1fr); gap:2px; }
+.cal-dow{
+  text-align:center; font-size:10px; font-weight:700; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--text-dim); padding:4px 0;
+}
+.cal-day{
+  appearance:none; border:none; background:transparent; color:var(--text);
+  font:inherit; font-size:12px; font-variant-numeric:tabular-nums;
+  height:30px; border-radius:6px; cursor:pointer;
+}
+.cal-day:hover:not(:disabled){ background:var(--total-row-bg); }
+.cal-day:disabled{ color:var(--text-dim); opacity:.35; cursor:default; }
+.cal-day.today{ box-shadow:inset 0 0 0 1px var(--accent); }
+.cal-day.selected{ background:var(--accent); color:var(--accent-ink); font-weight:700; }
+.cal-day:focus-visible{ outline:2px solid var(--accent); outline-offset:-2px; }
+.cal-empty{ height:30px; }
+
+/* Multi-select filter (Vendor Group / Customer Group): a trigger button
+   styled like a <select>, opening a panel of checkboxes. Reuses the
+   acct-combo panel geometry so both dropdowns read as one control family. */
+.ms-combo{ position:relative; }
+.ms-trigger{
+  appearance:none; font:inherit; font-size:13px; font-weight:600; text-align:left;
+  color:var(--text);
+  background:var(--surface) url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6"><path d="M0 0l5 6 5-6z" fill="%23756B70"/></svg>') no-repeat right 12px center;
+  border:1px solid var(--border); border-radius:8px;
+  padding:9px 32px 9px 14px; min-width:170px; cursor:pointer; white-space:nowrap;
+  transition:border-color .15s ease;
+}
+.ms-trigger:hover{ border-color:var(--accent); }
+.ms-trigger.active{ border-color:var(--accent); color:var(--accent); }
+.ms-trigger:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+.ms-panel{
+  position:absolute; top:calc(100% + 4px); left:0; z-index:20;
+  background:var(--surface); border:1px solid var(--border); border-radius:8px;
+  box-shadow:var(--shadow); max-height:280px; overflow-y:auto; min-width:240px;
+}
+.ms-option{
+  display:flex; align-items:center; gap:8px; padding:8px 12px;
+  font-size:13px; cursor:pointer; white-space:nowrap;
+}
+.ms-option:hover, .ms-option.active{ background:var(--total-row-bg); }
+.ms-option input{ accent-color:var(--accent); margin:0; flex:none; }
+.ms-option.ms-all{ font-weight:700; border-bottom:1px solid var(--border); }
+label.acct-combo-option.ms-check-option{ display:flex; align-items:center; gap:8px; }
+label.acct-combo-option.ms-check-option input{ accent-color:var(--accent); margin:0; flex:none; }
+.acct-combo-option.ms-all{ font-weight:700; border-bottom:1px solid var(--border); }
+.acct-combo-panel.ms-panel-mode{ display:flex; flex-direction:column; overflow:hidden; padding:0; }
+.ms-clear-bar{ flex:none; display:flex; justify-content:flex-end; padding:6px 10px; border-bottom:1px solid var(--border); }
+.ms-clear-btn{
+  appearance:none; border:none; background:transparent; color:var(--accent);
+  font:inherit; font-size:12px; font-weight:700; cursor:pointer; padding:4px 8px; border-radius:6px;
+}
+.ms-clear-btn:hover:not(:disabled){ background:var(--total-row-bg); }
+.ms-clear-btn:disabled{ color:var(--text-dim); cursor:default; opacity:.6; }
+.ms-options-scroll{ overflow-y:auto; flex:1 1 auto; min-height:0; }
+
+/* Vendor/Customer Aging: the By Company / By Region row expands in place,
+   with its vendor/customer rows inserted directly underneath in the same
+   table (no separate view). */
+.aging-region-toggle{ display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:700; text-decoration:none; }
+.aging-region-toggle .aging-caret{ display:inline-block; width:10px; text-align:center; font-size:10px; color:var(--text-dim); }
+tr.aging-subrow td{ background-color:var(--surface-2); font-size:12px; color:var(--text-dim); }
+tr.aging-subrow td.col-left{ padding-left:34px; }
+tr.aging-subrow:hover td{ background-color:var(--total-row-bg); }
+.aging-subrow-entity{ opacity:.7; }

@@ -1,0 +1,16 @@
+[Unit]
+Description=GJV Journal Register refresh
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/azureuser/hb-gjv-register
+# Same Claude login and preflight as the Consolidated Trial Balance refresh
+# (hb-trial-balance.service): the Databricks connector is reached through it.
+Environment=CLAUDE_CONFIG_DIR=/home/azureuser/.claude-pulse-sc
+ExecStartPre=/home/azureuser/agents/_shared/pulse-identity/preflight.sh
+TimeoutStartSec=60min
+ExecStart=/home/azureuser/hb-gjv-register/refresh.sh
+StandardOutput=append:/home/azureuser/hb-gjv-register/logs/refresh.log
+StandardError=append:/home/azureuser/hb-gjv-register/logs/refresh.log
